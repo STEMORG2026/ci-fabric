@@ -113,6 +113,26 @@ def test_malformed_lockfiles_report_warnings_not_crashes(tmp_path: Path) -> None
     assert any("poetry.lock" in warning for warning in warnings)
 
 
+def test_requirements_lock_files_feed_the_sbom(tmp_path: Path) -> None:
+    # Hash-pinned pip-format lockfiles (pip-tools/uv compiled) are as good a
+    # dependency source as requirements.txt and must not be invisible to the SBOM.
+    root = make_repo(
+        tmp_path,
+        files={
+            "requirements-dev.lock": (
+                "pytest==9.1.1 --hash=sha256:" + "a" * 64 + "\n"
+                "ruff==0.9.4 --hash=sha256:" + "b" * 64 + "\n"
+            ),
+        },
+    )
+    components, warnings = collect_components(root)
+    assert warnings == []
+    found = {(c.name, c.version, c.ecosystem) for c in components}
+    assert ("pytest", "9.1.1", "pypi") in found
+    assert ("ruff", "0.9.4", "pypi") in found
+    assert any(p.name == "requirements-dev.lock" for p in find_lockfiles(root))
+
+
 def test_find_lockfiles_skips_venv_directories(tmp_path: Path) -> None:
     root = make_repo(
         tmp_path,

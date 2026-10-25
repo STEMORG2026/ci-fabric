@@ -54,8 +54,11 @@ MANIFEST_SCHEMA = 1
 _MTIME_FLOOR = 315_532_800  # 1980-01-01, valid in both tar and zip
 _COMPONENT_PATTERNS = (
     "requirements*.txt",
+    "requirements*.lock",
     "requirements/*.txt",
+    "requirements/*.lock",
     "*/requirements*.txt",
+    "*/requirements*.lock",
     "uv.lock",
     "poetry.lock",
     "package-lock.json",
