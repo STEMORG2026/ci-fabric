@@ -1,0 +1,142 @@
+# ci-fabric dogfood configuration. Canonical local entry point: ./ci
+version = 1
+
+[project]
+name = "ci-fabric"
+version_file = "VERSION"
+version_format = "semver"
+description = "Local-first, repository-native CI/CD orchestration for any stack."
+
+[policy]
+profile = "strict"
+fail_fast = true
+require_clean_worktree = "release"
+keep_runs = 20
+require_test_discovery = true
+audit_required = true
+allow_no_git = false
+max_tracked_file_mib = 5.0
+required_stages = ["unit", "lint"]
+
+[repository]
+required_paths = [
+  "README.md",
+  "LICENSE",
+  "pyproject.toml",
+  "requirements-dev.lock",
+  "src/ci_fabric",
+  "tests",
+  "scripts/bootstrap.sh",
+]
+check_links = "warn"
+link_globs = ["*.md", "docs/**/*.md", "examples/**/*.md"]
+required_lockfiles = ["requirements-dev.lock"]
+check_conflict_markers = true
+check_license = true
+
+[[repository.versions]]
+path = "pyproject.toml"
+format = "toml"
+key = "project.version"
+
+[stages.repository]
+required = true
+
+[stages.format]
+required = true
+commands = ["{python} -m ruff format --check src tests"]
+fix_commands = ["{python} -m ruff format src tests"]
+
+[stages.lint]
+required = true
+commands = ["{python} -m ruff check src tests"]
+
+[stages.typecheck]
+required = true
+commands = ["{python} -m mypy src"]
+
+[stages.unit]
+required = true
+commands = [
+  "{python} -m pytest -q tests/unit --junitxml={artifacts}/junit-unit.xml",
+]
+junit_path = "{artifacts}/junit-unit.xml"
+test_globs = ["tests/unit/**/*.py"]
+min_test_files = 1
+
+[stages.integration]
+required = true
+commands = [
+  "{python} -m pytest -q tests/integration --junitxml={artifacts}/junit-integration.xml",
+]
+junit_path = "{artifacts}/junit-integration.xml"
+test_globs = ["tests/integration/**/*.py"]
+min_test_files = 1
+
+[stages.contract]
+required = true
+commands = [
+  "{python} -m pytest -q tests/contract --junitxml={artifacts}/junit-contract.xml",
+]
+junit_path = "{artifacts}/junit-contract.xml"
+test_globs = ["tests/contract/**/*.py"]
+min_test_files = 1
+
+[stages.e2e]
+required = true
+commands = [
+  "{python} -m pytest -q tests/e2e --junitxml={artifacts}/junit-e2e.xml",
+]
+junit_path = "{artifacts}/junit-e2e.xml"
+test_globs = ["tests/e2e/**/*.py"]
+min_test_files = 1
+
+[stages.coverage]
+required = true
+commands = [
+  "{python} -m pytest -q tests --cov=ci_fabric --cov-report=term --cov-report=xml:{artifacts}/coverage.xml --cov-fail-under=74",
+]
+report_path = "{artifacts}/coverage.xml"
+min_percent = 74
+
+[stages.security]
+required = true
+secret_scan = true
+scan_untracked = false
+scan_config = true
+commands = [
+  "{python} -m bandit -q -r src -f json -o {reports}/bandit.json -s B101,B404,B602,B603,B607,B310",
+]
+
+[stages.audit]
+required = true
+commands = ["{python} -m pip_audit -r requirements-dev.lock"]
+
+[stages.build]
+required = true
+commands = ["{python} -m build --no-isolation --outdir dist"]
+outputs = ["dist"]
+
+[stages.package]
+required = true
+strategy = "archive"
+inputs = ["dist"]
+strip_prefix = "dist"
+output = "{artifacts}/package.tar.gz"
+
+[stages.artifact]
+required = true
+verify_archives = true
+scan_secrets = true
+must_contain = []
+
+[release]
+require_clean = true
+require_notes = true
+changelog = "RELEASE_NOTES.md"
+tag_prefix = "v"
+output_dir = ".localci/releases"
+
+[hooks]
+pre_commit_stages = ["repository", "format", "security"]
+pre_push_stages = ["repository", "format", "lint", "typecheck", "unit", "security"]

@@ -1,0 +1,91 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ci-fabric"
+version = "0.1.0"
+description = "Local-first, repository-native CI/CD orchestration for any stack."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Sajan Gurung" }]
+keywords = ["ci", "cd", "local-first", "devops", "supply-chain"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development :: Build Tools",
+  "Topic :: Software Development :: Quality Assurance",
+  "Topic :: Software Development :: Testing",
+]
+dependencies = []
+
+[project.scripts]
+ci-fabric = "ci_fabric.cli:main"
+
+[project.urls]
+Homepage = "https://example.invalid/ci-fabric"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+markers = [
+  "slow: takes longer than a few seconds",
+  "network: requires outbound network access",
+  "destructive: starts or stops local processes",
+]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["ci_fabric"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = [".venv", "dist", "build", ".ci", ".localci"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "PIE", "PERF", "RUF"]
+ignore = [
+  "RUF001", # ambiguous unicode in prose
+  "RUF002",
+  "RUF003",
+  "SIM117", # nested with statements are clearer in some tests
+]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+known-first-party = ["ci_fabric"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unreachable = true
+show_error_codes = true
+pretty = true
