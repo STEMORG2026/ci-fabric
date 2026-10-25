@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 import re
 import time
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from ..context import Context
+from ..errors import CiError
 from ..gates import GateResult, StageResult, failed, passed, skipped, stage_result
 from ..runner import run_command
-from ..util import read_text, relpath
+from ..util import parse_xml_file, read_text, relpath
 from .base import Echo, disabled_gate
 
 _TOTAL_PATTERN = re.compile(r"(?i)\bTOTAL\b.*?(\d+(?:\.\d+)?)%")
@@ -22,7 +22,7 @@ def parse_coverage_report(path: Path) -> tuple[float | None, str]:
     suffix = path.suffix.lower()
     try:
         if suffix == ".xml":
-            root = ET.parse(path).getroot()
+            root = parse_xml_file(path)
             rate = root.attrib.get("line-rate")
             if rate is not None:
                 return round(float(rate) * 100, 2), "line-rate"
@@ -50,7 +50,7 @@ def parse_coverage_report(path: Path) -> tuple[float | None, str]:
             if found:
                 return round(hit / found * 100, 2), "lcov lines"
             return None, "lcov has no line data"
-    except (OSError, ValueError, ET.ParseError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, CiError, json.JSONDecodeError) as exc:
         return None, f"could not parse coverage report: {exc}"
     return None, "unsupported coverage report format"
 

@@ -426,6 +426,8 @@ def _tail(text: str, limit: int = 2000) -> str:
 
 
 def _probe_host(host: str) -> str:
+    # A deployment configured to bind a wildcard address is still probed
+    # over loopback; nothing in this helper binds a socket.
     if host in {"0.0.0.0", "::", "[::]"}:
         return "127.0.0.1"
     return host

@@ -537,6 +537,34 @@ def matches_any(relative: str, patterns: Iterable[str]) -> bool:
     return any(glob_match(relative, pattern) for pattern in patterns)
 
 
+_XML_ENTITY_RE = re.compile(r"(?i)<!\s*(DOCTYPE|ENTITY)")
+
+
+def parse_xml_file(path: Path, *, max_bytes: int = 64 * 1024 * 1024) -> Any:
+    """Parse an XML report defensively (JUnit, coverage).
+
+    Report files are produced by repository-configured commands, but they are
+    still file input parsed with the standard library. DTDs and entity
+    declarations are rejected outright so entity-expansion payloads never
+    reach the parser; this guard is why the call sites do not use
+    ``xml.etree.ElementTree.parse`` directly (bandit B405/B314).
+    """
+    # The DTD/entity guard below defuses entity expansion (bandit B405/B314).
+    import xml.etree.ElementTree as ET  # nosec B405
+
+    text = read_text(path, limit=max_bytes)
+    if _XML_ENTITY_RE.search(text):
+        raise CiError(
+            f"{relpath(path, path.parent)} declares a DTD or entity; refusing to parse it",
+            remediation="Regenerate the report; XML reports must not contain DTDs or entities.",
+        )
+    try:
+        # Guarded: DTDs and entities were rejected before this parse.
+        return ET.fromstring(text)  # nosec B314
+    except Exception as exc:
+        raise CiError(f"could not parse XML report {path}: {exc}") from exc
+
+
 def merge_dicts(base: dict[str, str], overlay: dict[str, str]) -> dict[str, str]:
     merged = dict(base)
     merged.update(overlay)

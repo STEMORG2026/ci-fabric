@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import re
 import time
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 
 from ..context import Context
+from ..errors import CiError
 from ..gates import GateResult, StageResult, errored, failed, passed, skipped, stage_result
 from ..runner import run_command
-from ..util import iter_files, matches_any, relpath
+from ..util import iter_files, matches_any, parse_xml_file, relpath
 from .base import Echo, disabled_gate
 
 _DEFAULT_TEST_GLOBS = (
@@ -82,8 +82,7 @@ def discover_tests(root: Path, globs: list[str]) -> list[str]:
 
 def parse_junit(path: Path) -> JunitCounts:
     counts = JunitCounts()
-    tree = ET.parse(path)
-    root = tree.getroot()
+    root = parse_xml_file(path)
     candidates = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
     if not candidates:
         candidates = [root]
@@ -310,7 +309,7 @@ def run_test_stage(
         if junit_path.is_file():
             try:
                 counts = parse_junit(junit_path)
-            except (ET.ParseError, OSError) as exc:
+            except (CiError, OSError) as exc:
                 gates.append(
                     failed(
                         f"{name}.junit",

@@ -166,7 +166,9 @@ def render_config(detection: Detection, profile: str) -> str:
                 "security",
                 commands=[],
                 required=True,
-                extra={"secret_scan": True, "scan_untracked": False, "scan_config": True},
+                # "secret_scan" is a stage option name, not a credential value
+                # (bandit B105 false positive).
+                extra={"secret_scan": True, "scan_untracked": False, "scan_config": True},  # nosec B105
             ).rstrip(),
             "",
         ]

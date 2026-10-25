@@ -11,8 +11,8 @@ def test_build_command_producing_declared_outputs(tmp_path: Path) -> None:
     root = make_repo(
         tmp_path,
         sections=(
-            '[stages.build]\n'
-            'required = true\n'
+            "[stages.build]\n"
+            "required = true\n"
             'commands = ["mkdir -p dist && echo payload > dist/app.bin"]\n'
             'outputs = ["dist"]',
         ),
@@ -30,12 +30,7 @@ def test_build_command_producing_declared_outputs(tmp_path: Path) -> None:
 def test_build_missing_outputs_fail_the_stage(tmp_path: Path) -> None:
     root = make_repo(
         tmp_path,
-        sections=(
-            '[stages.build]\n'
-            'required = true\n'
-            'commands = ["true"]\n'
-            'outputs = ["dist"]',
-        ),
+        sections=('[stages.build]\nrequired = true\ncommands = ["true"]\noutputs = ["dist"]',),
     )
     result, _context = run_fixture_pipeline(root, command="build")
     outputs = gate(result, "build.outputs")
@@ -49,8 +44,8 @@ def test_failing_build_command_fails_fast_before_outputs(tmp_path: Path) -> None
     root = make_repo(
         tmp_path,
         sections=(
-            '[stages.build]\n'
-            'required = true\n'
+            "[stages.build]\n"
+            "required = true\n"
             'commands = ["echo build-boom; exit 7"]\n'
             'outputs = ["dist"]',
         ),

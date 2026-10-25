@@ -12,6 +12,7 @@ from typing import Any
 
 from .config import command_program
 from .context import Context
+from .errors import CiError
 from .util import git_is_ignored, port_is_open, utc_now
 
 _SHELL_BUILTINS = {
@@ -106,8 +107,8 @@ def _python_module(command: str) -> str | None:
         tokens = shlex.split(command)
     except ValueError:
         return None
-    for index, token in enumerate(tokens[:-1]):
-        if token == "-m":
+    for index, word in enumerate(tokens[:-1]):
+        if word == "-m":
             return tokens[index + 1]
     return None
 
@@ -120,7 +121,23 @@ def _command_checks(context: Context) -> list[DoctorCheck]:
     for stage_name, stage in sorted(context.config.stages.items()):
         if not stage.enabled:
             continue
-        for command in stage.commands:
+        for raw_command in stage.commands:
+            # Commands are checked exactly as they will run: placeholders such
+            # as {python} must be rendered first, or every templated command
+            # would be reported as a missing executable.
+            try:
+                command = context.render(raw_command)
+            except CiError as exc:
+                checks.append(
+                    DoctorCheck(
+                        f"command.{stage_name}.render",
+                        False,
+                        stage.required,
+                        f"could not render command `{raw_command}`: {exc}",
+                        "Fix the unknown placeholder in the stage command.",
+                    )
+                )
+                continue
             program = command_program(command)
             if not program or program in _SHELL_BUILTINS:
                 continue

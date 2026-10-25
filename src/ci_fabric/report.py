@@ -50,17 +50,14 @@ class RunResult:
         return [gate for gate in self.all_gates if gate.blocking_failure]
 
     def counts(self) -> dict[str, int]:
-        counts = {
+        counts: dict[str, int] = {
             "stages": len(self.stages),
             "gates": 0,
-            "pass": 0,
-            "fail": 0,
-            "warn": 0,
-            "skip": 0,
-            "error": 0,
             "blocking_failures": 0,
             "warning_gates": 0,
         }
+        for status in ("pass", "fail", "warn", "skip", "error"):
+            counts[status] = 0
         for gate in self.all_gates:
             counts["gates"] += 1
             key = gate.status.lower()
