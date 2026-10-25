@@ -38,8 +38,8 @@ tooling that is actually present. It never installs dependencies.
 | `./ci release` | full pipeline plus a verified local release bundle |
 | `./ci deploy --env NAME` | deploy a verified release locally |
 
-Additional commands: `doctor`, `run`, `format --fix`, `policy`, `status`,
-`release`, `deploy-status`, `rollback`, `undeploy`, `health`, `smoke`,
+Additional commands: `doctor`, `run --stages/--skip`, `format --fix`, `policy`,
+`status`, `deploy-status`, `rollback`, `undeploy`, `health`, `smoke`,
 `hooks install|uninstall|status`, `releases`, `clean`.
 
 Exit codes: `0` success, `1` blocking gate failed, `2` configuration/usage
@@ -52,12 +52,12 @@ adoption guide and limitations. Unknown configuration keys are hard errors.
 
 ## Documentation
 
-- `docs/adoption.md`
-- `docs/configuration.md`
-- `docs/gates.md`
-- `docs/operations.md`
-- `docs/security.md`
-- `docs/roadmap.md`
+- [Adoption guide](docs/adoption.md) — install, `init`, profiles, hooks
+- [Configuration reference](docs/configuration.md) — every `ci.toml` key
+- [Gates and rationale](docs/gates.md) — classifications, pipeline order, thresholds
+- [Operations](docs/operations.md) — commands, state layout, releases, deploy, troubleshooting
+- [Security model](docs/security.md) — secret scanning, SAST suppressions, supply-chain artifacts, limitations
+- [Roadmap](docs/roadmap.md) — near/medium term and explicit non-goals
 
 ## Development
 
