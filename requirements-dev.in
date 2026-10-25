@@ -5,6 +5,6 @@ pip-audit>=2.8,<3
 pytest>=9.0.3,<10
 ruff>=0.9,<1
 bandit>=1.8,<2
-setuptools>=83,<84
+setuptools>=84.1,<85
 wheel>=0.44,<1
 pytest-cov>=6,<7
