@@ -94,13 +94,15 @@ min_test_files = 1
 [stages.coverage]
 required = true
 # Isolate coverage data per run so stale root-level .coverage files can never
-# poison combination (branch vs non-branch data mismatch).
-env = { COVERAGE_FILE = "{artifacts}/coverage.data" }
-# pytest-cov force-enables subprocess measurement, which cannot combine with
-# branch data (see pyproject [tool.coverage.run]); coverage is therefore
-# driven directly, in one shell chain, against the run-isolated data file.
+# poison combination. The in-process run and the deliberately-measured CLI
+# subprocesses (tests/support.py run_cli, gated on CI_FABRIC_COVERAGE=1) both
+# write parallel data against the same run-scoped file, which `coverage
+# combine` then merges. pytest-cov is not used in the pipeline: it force-enables
+# blanket subprocess measurement whose statement-only data cannot combine
+# with branch data (see pyproject [tool.coverage.run] patch = []).
+env = { COVERAGE_FILE = "{artifacts}/coverage.data", CI_FABRIC_COVERAGE = "1" }
 commands = [
-  "{python} -m coverage run -m pytest -q tests && {python} -m coverage report --fail-under=74 && {python} -m coverage xml -o {artifacts}/coverage.xml",
+  "{python} -m coverage run --parallel-mode -m pytest -q tests && {python} -m coverage combine && {python} -m coverage report --fail-under=74 && {python} -m coverage xml -o {artifacts}/coverage.xml",
 ]
 report_path = "{artifacts}/coverage.xml"
 min_percent = 74

@@ -188,13 +188,34 @@ def run_cli(
     cwd: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
     command = [PYTHON, "-m", "ci_fabric", "--root", str(root), *args]
+    environment = dict(env or cli_env())
+    # When the coverage stage sets CI_FABRIC_COVERAGE=1, CLI subprocesses are
+    # measured deliberately (they exit cleanly, unlike deploy servers). This
+    # keeps the CLI's gate coverage honest without blanket subprocess patching.
+    if environment.get("CI_FABRIC_COVERAGE") == "1":
+        # --branch keeps child data compatible with the parent's branch data;
+        # children run with cwd in the fixture repo, where no coverage config
+        # exists, so branch measurement must be requested explicitly.
+        command = [
+            PYTHON,
+            "-m",
+            "coverage",
+            "run",
+            "--parallel-mode",
+            "--branch",
+            "-m",
+            "ci_fabric",
+            "--root",
+            str(root),
+            *args,
+        ]
     return subprocess.run(
         command,
         cwd=str(cwd or root),
         text=True,
         capture_output=True,
         check=False,
-        env=dict(env or cli_env()),
+        env=environment,
         timeout=300,
     )
 
