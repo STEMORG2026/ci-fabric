@@ -93,6 +93,9 @@ min_test_files = 1
 
 [stages.coverage]
 required = true
+# Isolate coverage data per run so stale root-level .coverage files can never
+# poison combination (branch vs non-branch data mismatch).
+env = { COVERAGE_FILE = "{artifacts}/coverage.data" }
 commands = [
   "{python} -m pytest -q tests --cov=ci_fabric --cov-report=term --cov-report=xml:{artifacts}/coverage.xml --cov-fail-under=74",
 ]

@@ -54,6 +54,10 @@ filterwarnings = ["error"]
 [tool.coverage.run]
 source = ["ci_fabric"]
 branch = true
+# Coverage >=7.10 patches subprocesses by default; every process spawned by a
+# test (deploy servers, CLI subprocesses) then writes statement-only data that
+# cannot combine with the parent's branch data. Only this process measures.
+patch = []
 
 [tool.coverage.report]
 show_missing = true
