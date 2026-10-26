@@ -143,6 +143,29 @@ def test_markdown_link_checking(tmp_path: Path) -> None:
     assert {problem.target for problem in problems} == {"missing.md", "../nope.md"}
 
 
+def test_env_templates_are_allowed_but_real_env_files_are_not(tmp_path: Path) -> None:
+    # Found by a real consumer (USA tracks a legitimate .env.example): the
+    # .env.* forbidden glob must not catch the documentation convention.
+    from ci_fabric.repository import check_tracked_files
+
+    tracked = [
+        ".env",
+        ".env.example",
+        ".env.sample",
+        ".env.template",
+        ".env.local",
+        ".env.production",
+    ]
+    report = check_tracked_files(
+        tmp_path,
+        tracked,
+        forbidden_patterns=[".env", ".env.*"],
+        max_file_bytes=1024 * 1024,
+        conflict_markers=True,
+    )
+    assert report["forbidden"] == [".env", ".env.local", ".env.production"]
+
+
 def test_tracked_file_policy(tmp_path: Path) -> None:
     root = make_repo(tmp_path)
     write_files(

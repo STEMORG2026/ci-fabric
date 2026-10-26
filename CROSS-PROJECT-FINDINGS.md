@@ -158,5 +158,26 @@ Interfaces relevant to ci-fabric:
   Shipped this cycle: 0.4.0 (unverified outcomes, parallel tiers) and
   0.5.0 (baseline-gated secrets; adoption of USA's baseline pattern,
   natively against our own finding fingerprints — decisions.md D12).
-- Cycle 4 (pending): delta from `a0dac82` (MACP), `b012f57` (USA),
-  `d3f126f` (AutoDOC).
+- Cycle 4 (2026-10-26, evening): **Universal_Software_Auditor adopted
+  ci-fabric** — its repo carries a generated `ci.toml`, the `./ci` shim,
+  and a real adoption trail in `.ci/results/` (doctor PASS → validate FAIL
+  → check FAIL → test FAIL → test PASS, ending green on its 108s vitest
+  suite). Two product findings from that trail, both ours to fix:
+  1. `repository.forbidden-files` flagged USA's legitimate `.env.example`
+     — the `.env.*` default glob catches the established documentation
+     convention. **Fixed in ci-fabric**: exactly `.env.example`/`.env.sample`
+     `/`.env.template` are now exempt (`.env.local` etc. stay forbidden).
+  2. `security.secrets` reported 34 findings on USA's deliberately
+     credential-shaped audit fixtures — precisely the legacy-adoption case
+     the 0.5.0 baseline exists for. Guidance for USA (their decision, their
+     repo): `[stages.security].baseline` + `./ci security --update-baseline`,
+     or allowlist entries per fixture path.
+  MACP +5: lease-first session start (no orphan records on lease failure —
+  the same "receipt outside the tree" discipline our run-lock follows);
+  Q007 logged (queue.md freeze rules disagree between gates) — theirs to
+  resolve. AutoDOC +1 (USA hygiene round; no interface impact).
+  Shipped this cycle: 0.6.0 (content-addressed build cache, D13), the
+  `.env.example` exception, and this log. New baselines: MACP `495ef95`,
+  USA `3ddd30c`, AutoDOC `4e26ca1`.
+- Cycle 5 (pending): delta from `495ef95` (MACP), `3ddd30c` (USA),
+  `4e26ca1` (AutoDOC).

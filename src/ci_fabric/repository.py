@@ -41,6 +41,19 @@ def _matches(path: str, patterns: list[str]) -> bool:
     return matches_any(path, patterns)
 
 
+# `.env.example` / `.env.sample` / `.env.template` are the established
+# convention for documenting *which* variables a project needs, with
+# placeholder values and no secrets. The `.env.*` forbidden glob catches
+# them; this exception un-catches exactly those three names, and nothing
+# else (`.env.local`, `.env.production` stay forbidden). Found by a real
+# consumer: Universal_Software_Auditor tracks a legitimate `.env.example`.
+_ENV_TEMPLATE_EXACT = frozenset({".env.example", ".env.sample", ".env.template"})
+
+
+def _is_env_template(relative: str) -> bool:
+    return relative in _ENV_TEMPLATE_EXACT or relative.rsplit("/", 1)[-1] in _ENV_TEMPLATE_EXACT
+
+
 def _strip_fences(text: str) -> str:
     output: list[str] = []
     in_fence = False
@@ -198,7 +211,7 @@ def check_tracked_files(
     conflicts: list[str] = []
     unreadable: list[str] = []
     for relative in tracked:
-        if _matches(relative, forbidden_patterns):
+        if _matches(relative, forbidden_patterns) and not _is_env_template(relative):
             forbidden.append(relative)
             continue
         path = root / relative

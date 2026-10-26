@@ -1,3 +1,19 @@
+# ci-fabric 0.6.1
+
+Consumer-feedback fix from the first real adoption.
+
+## Fixed
+
+- `.env.example`, `.env.sample`, and `.env.template` are no longer flagged
+  by the `repository.forbidden-files` gate: they are the established
+  convention for documenting *which* variables a project needs, with
+  placeholder values and no secrets. Exactly those three names are exempt;
+  `.env`, `.env.local`, `.env.production` and every other `.env.*` stay
+  forbidden. Found by Universal_Software_Auditor's adoption run, which
+  tracks a legitimate `.env.example` and was correctly-but-unhelpfully
+  blocked by the default `.env.*` glob.
+
+# ci-fabric 0.6.0
 # ci-fabric 0.6.0
 
 Content-addressed build cache: same clean tree, same commands, no rebuild.
