@@ -20,7 +20,7 @@
 | `./ci release [--version V] [--tag] [--notes-file F] [--force]` | full pipeline, then a verified local release bundle |
 | `./ci deploy --env E [--version V]` | deploy a verified local release |
 | `./ci rollback --env E` / `undeploy --env E` | restore the previous deployment / stop |
-| `./ci health --env E` / `smoke --env E` | probe the running deployment |
+| `./ci health --env E` / `smoke --env E` | probe the running deployment (smoke re-proves invariants) |
 | `./ci deploy-status [--env E] [--json]` | deployment state (safe to parse; `--json` output is pure JSON) |
 | `./ci doctor [--json]` | environment and tooling diagnosis |
 | `./ci policy [--json]` | effective policy document |

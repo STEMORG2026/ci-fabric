@@ -1,3 +1,21 @@
+# ci-fabric 0.7.0
+
+Stateful-system invariants: system state is a deploy gate.
+
+## Added
+
+- **`[deploy.<env>].invariants`** — commands that must hold on every deploy
+  (migrations applied, queues empty, flags present). A failed invariant
+  blocks activation exactly like a failed health check — automatic rollback
+  included — and `./ci smoke` re-proves them on every invocation, making the
+  system state a standing contract rather than a deploy-time formality.
+  The distinction from smoke_commands is the claim under test: smoke proves
+  the application answers; invariants prove the state around it. Proven by
+  an end-to-end test where a release ships healthy HTTP but a missing
+  migration marker, and the invariant alone triggers rollback to the
+  previous good release.
+
+# ci-fabric 0.6.1
 # ci-fabric 0.6.1
 
 Consumer-feedback fix from the first real adoption.

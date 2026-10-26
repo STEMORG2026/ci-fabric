@@ -163,6 +163,20 @@ keying on the version string (two commits can share a version); caching
 across environments (the rendered command embeds the interpreter path, so a
 different venv is naturally a different key).
 
+## D14 — Stateful invariants are deploy gates, not documentation
+
+**Decision.** `[deploy.<env>].invariants` are commands that must hold on
+every deploy (migrations applied, queues empty, flags present). They block
+activation exactly like a health failure — auto-rollback included — and
+`./ci smoke` re-proves them on every invocation, so they are a standing
+contract rather than a deploy-time formality.
+
+**Rejected.** Treating them as smoke_commands (smoke proves the *application
+answers*; invariants prove the *system state* around it — conflating them is
+how "the app is up" comes to mean "the migration ran" on no evidence);
+making them advisory (a stateful system deployed with a failed migration is
+worse than not deployed — that is what rollback exists for).
+
 ## Pending decisions (deliberately open)
 
 - A first-class default signer story (cosign keyless) and countersigning the

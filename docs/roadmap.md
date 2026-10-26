@@ -33,10 +33,9 @@ makes the local pipeline more rigorous comes in.
 - **Generic container strategy.** A third `deploy` strategy (today: `process`
   and `static`) that wraps the same release bundle in an OCI image built
   deterministically, without requiring Docker for consumers who do not want it.
-- **Stateful-system checks.** The deploy stage already verifies
-  health/readiness; extend with declared post-deploy invariants (migrations
-  applied, feature flags present, queues empty) as first-class gates with the
-  same blocking semantics.
+- ~~**Stateful-system checks.**~~ ~Done in 0.7.0 (decisions.md D14):
+  `[deploy.<env>].invariants` block activation like health failures —
+  auto-rollback included — and `./ci smoke` re-proves them on every run.~
 - **Coverage measurement ergonomics.** ~In daily use here:~ test tiers
   measure themselves into per-run parallel data files and the coverage stage
   combines them (see this repository's `ci.toml`); productizing that pattern

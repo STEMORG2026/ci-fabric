@@ -233,6 +233,11 @@ class DeployEnvConfig:
     smoke_path: str = "/"
     smoke_expect: str | None = None
     smoke_commands: list[str] = field(default_factory=list)
+    # Stateful-system invariants: commands that must hold on every deploy
+    # (migrations applied, queues empty, flags present). They block
+    # activation exactly like health failures — auto-rollback included —
+    # and are re-checked by `./ci smoke`.
+    invariants: list[str] = field(default_factory=list)
     start_command: str | None = None
     server_command: str | None = None
     public_dir: str = "."
@@ -792,6 +797,7 @@ def _parse_deploy_env(name: str, doc: dict[str, Any], where: str) -> DeployEnvCo
         "smoke_path",
         "smoke_expect",
         "smoke_commands",
+        "invariants",
         "start_command",
         "server_command",
         "public_dir",
@@ -855,6 +861,7 @@ def _parse_deploy_env(name: str, doc: dict[str, Any], where: str) -> DeployEnvCo
         smoke_path=smoke_path,
         smoke_expect=_string(doc, "smoke_expect", where),
         smoke_commands=_string_list(doc, "smoke_commands", where),
+        invariants=_string_list(doc, "invariants", where),
         start_command=start_command,
         server_command=_string(doc, "server_command", where),
         public_dir=public_dir,

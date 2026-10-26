@@ -824,6 +824,60 @@ def _activate(
                 )
         record.smoke["commands"] = smoke_results
 
+    # Stateful-system invariants: must hold on every deploy, block exactly
+    # like a health failure, and are re-checked by `./ci smoke`. The
+    # distinction from smoke_commands is the claim under test — smoke proves
+    # the application answers; invariants prove the *system state* around it
+    # is the state the deployment contract requires.
+    if environment.invariants:
+        invariant_results: list[dict[str, Any]] = []
+        for index, raw_command in enumerate(environment.invariants, start=1):
+            command = context.render(raw_command, extra=extra)
+            echo(f"  $ {command} (invariant)")
+            log = context.paths.logs_dir / (
+                f"deploy-{record.environment}-invariant-{index:02d}.log"
+            )
+            result = run_command(
+                command,
+                cwd=app_dir,
+                env=env,
+                timeout=float(environment.smoke_timeout),
+                log_path=log,
+                echo=echo,
+            )
+            invariant_results.append(
+                {
+                    "command": command,
+                    "exit_code": result.exit_code,
+                    "timed_out": result.timed_out,
+                    "duration_seconds": round(result.duration_seconds, 3),
+                    "log": relpath(log, context.root),
+                }
+            )
+            checks.append(
+                DeployCheck(
+                    f"invariant-{index:02d}",
+                    result.ok,
+                    result.summary()
+                    if result.ok
+                    else f"{result.summary()}: {_tail(result.output_tail, 500)}",
+                    result.duration_seconds,
+                )
+            )
+            if not result.ok:
+                _terminate(record, environment.stop_timeout)
+                record.pid = None
+                record.health["invariants"] = invariant_results
+                return (
+                    False,
+                    checks,
+                    f"invariant failed: {command}",
+                    exit_remediation(result)
+                    or "Fix the system state the invariant checks; a deployment whose "
+                    "invariants do not hold is not deployed.",
+                )
+        record.health["invariants"] = invariant_results
+
     record.status = "active"
     record.error = None
     checks.append(DeployCheck("deployment.active", True, f"serving {record.base_url}"))
@@ -1544,6 +1598,30 @@ def smoke(context: Context, environment_name: str, *, echo: Any = print) -> Depl
         checks.append(
             DeployCheck(
                 f"smoke-command-{index:02d}",
+                result.ok,
+                result.summary()
+                if result.ok
+                else f"{result.summary()}: {_tail(result.output_tail, 500)}",
+                result.duration_seconds,
+            )
+        )
+    # The standing contract includes invariants: `./ci smoke` re-proves the
+    # system state, not just the HTTP surface, on every invocation.
+    for index, raw_command in enumerate(environment.invariants, start=1):
+        command = context.render(raw_command, extra=extra)
+        echo(f"  $ {command} (invariant)")
+        log = context.paths.logs_dir / f"deploy-{environment_name}-invariant-{index:02d}.log"
+        result = run_command(
+            command,
+            cwd=app_dir,
+            env=env,
+            timeout=float(environment.smoke_timeout),
+            log_path=log,
+            echo=echo,
+        )
+        checks.append(
+            DeployCheck(
+                f"invariant-{index:02d}",
                 result.ok,
                 result.summary()
                 if result.ok

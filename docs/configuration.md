@@ -105,7 +105,9 @@ the bundle directory; see [security.md](security.md)). Configuring
 `server_command` (optional static file server), `public_dir`, `app_subdir`,
 `host`, `port` (`0` = allocate a free port), `health_path`, `readiness_path`,
 `health_expect`, `health_timeout`, `smoke_path`, `smoke_expect`,
-`smoke_commands`, `stop_timeout`, `artifact_name`, `auto_rollback` (default
+`smoke_commands`, `invariants` (stateful-system checks that block deploy
+and are re-run by `./ci smoke` — decisions.md D14), `stop_timeout`,
+`artifact_name`, `auto_rollback` (default
 true), `env`, `env_required`.
 
 `env` values may be `${VAR}` references. **Literal secret-shaped values are
