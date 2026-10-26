@@ -143,5 +143,20 @@ Interfaces relevant to ci-fabric:
   `details.outcome = "unverified"`, blocking unchanged; 4 contract tests.
   Also shipped this cycle: opt-in `parallel_test_tiers` (D11). New USA
   baseline to read at next delta: `432217e`.
-- Cycle 3 (pending): delta from `432217e` (USA), `d3f126f` (AutoDOC),
-  `1adfd61` (MACP).
+- Cycle 3 (2026-10-26, later): deltas — MACP +1 (owner rulings record, no
+  code); AutoDOC unchanged; USA +7, two MACP-gate fixes relevant to us as
+  evidence-pattern consumers: (a) `a77a8b7` — seal verification failed on an
+  *unchanged* file ~1 run in 4 (block-parser ambiguity picking the wrong
+  `## Close` occurrence), found by chasing a flaky test; (b) `a0e68ec` —
+  a rewritten history could close a tree that was never measured, fixed by
+  comparing the *tree* the gates measured, not the commit id, so rebases
+  cannot smuggle an unmeasured tree past a close. Both are lineage defects
+  ci-fabric's own model avoids by construction (we re-measure the working
+  tree at release time and refuse dirty trees), but the tree-vs-commit
+  comparison is recorded here as the correct pattern for any
+  measure-then-verify gate. New baselines: MACP `a0dac82`, USA `b012f57`.
+  Shipped this cycle: 0.4.0 (unverified outcomes, parallel tiers) and
+  0.5.0 (baseline-gated secrets; adoption of USA's baseline pattern,
+  natively against our own finding fingerprints — decisions.md D12).
+- Cycle 4 (pending): delta from `a0dac82` (MACP), `b012f57` (USA),
+  `d3f126f` (AutoDOC).
