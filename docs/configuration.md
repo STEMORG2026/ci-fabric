@@ -80,7 +80,8 @@ Stage-specific keys (validated per stage):
   `tests/test_a.py`), `*` never crosses `/`.
 - `coverage`: `report_path` (coverage.py XML/JSON, lcov, or a TOTAL line),
   `min_percent`.
-- `build`: `outputs` (paths that must exist after the command).
+- `build`: `outputs` (paths that must exist after the command), `cache`
+  (opt-in content-addressed build cache — see decisions.md D13).
 - `package`: `strategy` (`archive`), `inputs`, `strip_prefix`, `output`,
   `exclude`, `format` (`tar.gz`/`tar`/`zip`).
 - `artifact`: `verify_archives`, `scan_secrets`, `must_contain`, `allowlist`,

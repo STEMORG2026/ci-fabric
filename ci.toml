@@ -135,6 +135,8 @@ commands = ["{python} -m pip_audit -r requirements-dev.lock"]
 
 [stages.build]
 required = true
+# Same clean tree + same rendered commands: restore the previous build.
+cache = true
 commands = ["{python} -m build --no-isolation --outdir dist"]
 outputs = ["dist"]
 

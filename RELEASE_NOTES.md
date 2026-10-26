@@ -1,3 +1,22 @@
+# ci-fabric 0.6.0
+
+Content-addressed build cache: same clean tree, same commands, no rebuild.
+
+## Added
+
+- **`[stages.build].cache`** (opt-in, enabled for this repository): a green
+  build's declared outputs are stored under
+  `.localci/cache/build/<sha256(revision, commands)>`. A later run at the
+  same revision with identical rendered commands restores them digest-verified
+  and skips the build command — the `build.cache` gate says "cache hit" and
+  the build-marker of the dogfood test proves the command did not run.
+  Dirty trees are never consulted nor stored (a dirty build is not
+  reproducible); failures are never cached; corruption is a miss, never a
+  wrong artifact. Keying on the revision means any commit naturally
+  invalidates; the rendered command embedding the interpreter path means a
+  different venv naturally misses.
+
+# ci-fabric 0.5.0
 # ci-fabric 0.5.0
 
 Baseline-gated secret scanning: legacy debt is visible, new debt blocks.

@@ -7,8 +7,10 @@ import shutil
 import time
 from pathlib import Path
 
+from .. import buildcache
+from ..config import StageConfig
 from ..context import Context
-from ..gates import StageResult, failed, passed, skipped, stage_result, warning
+from ..gates import GateResult, StageResult, failed, passed, skipped, stage_result, warning
 from ..supplychain import write_manifest
 from ..util import ensure_dir, is_within, relpath, write_json
 from .base import Echo, disabled_gate, no_command_gate, run_stage_commands
@@ -99,7 +101,67 @@ def run_build_stage(context: Context, echo: Echo) -> StageResult:
             skipped_reason=None if stage.required else "not configured",
         )
 
-    gates, results = run_stage_commands(context=context, stage=stage, echo=echo)
+    rendered_commands = [context.render(command) for command in stage.commands]
+
+    # Content-addressed build cache (opt-in). A clean tree at the same
+    # revision with identical rendered commands restores the previous build's
+    # outputs instead of re-running the build; a dirty tree is never looked
+    # up and never stored. Only green builds are cached, and restores are
+    # digest-verified, so a hit is always the artifact the key promises.
+    cache_gates: list[GateResult] = []
+    if stage.cache:
+        if not context.git.available:
+            cache_gates.append(
+                warning(
+                    "build.cache",
+                    "build",
+                    "build cache",
+                    summary="cache=true requires a Git repository; building normally",
+                )
+            )
+        elif context.git.dirty:
+            cache_gates.append(
+                warning(
+                    "build.cache",
+                    "build",
+                    "build cache",
+                    summary=(
+                        "tree is dirty; cache not consulted (a dirty build is not reproducible)"
+                    ),
+                )
+            )
+        else:
+            key = buildcache.cache_key(context, rendered_commands)
+            entry = buildcache.lookup(context, key)
+            if entry is not None:
+                restored = buildcache.restore(entry, context)
+                echo(f"  cache hit {key[:12]}: restored {len(restored)} output(s); build skipped")
+                cache_gates.append(
+                    passed(
+                        "build.cache",
+                        "build",
+                        "build cache",
+                        required=stage.required,
+                        summary=(
+                            f"cache hit {key[:12]}: {len(restored)} output(s) restored, "
+                            "build commands skipped"
+                        ),
+                        details={"key": key, "restored": restored[:50]},
+                    )
+                )
+                return _finish_cached_build(
+                    context,
+                    stage,
+                    cache_gates,
+                    started,
+                    rendered_commands,
+                )
+            echo(f"  cache miss {key[:12]}: building and caching")
+
+    gates, results = run_stage_commands(
+        context=context, stage=stage, echo=echo, commands=stage.commands
+    )
+    gates = [*cache_gates, *gates]
     if any(gate.blocking_failure for gate in gates):
         return stage_result("build", gates, duration_seconds=time.monotonic() - started)
 
@@ -220,4 +282,104 @@ def run_build_stage(context: Context, echo: Echo) -> StageResult:
     for gate in gates:
         if gate.duration_seconds == 0.0 and gate.id.startswith("build."):
             gate.duration_seconds = results[0].duration_seconds if results else 0.0
+
+    # A green build with valid, declared outputs is worth caching.
+    if (
+        stage.cache
+        and context.git.available
+        and not context.git.dirty
+        and not any(gate.failed for gate in gates)
+        and build_files
+    ):
+        key = buildcache.cache_key(context, rendered_commands)
+        stored = buildcache.store(context, key, rendered_commands, expanded or [])
+        if stored is not None:
+            gates.append(
+                passed(
+                    "build.cache",
+                    "build",
+                    "build cache",
+                    required=stage.required,
+                    summary=f"cached under {key[:12]} for clean-tree reuse",
+                    details={"key": key},
+                    artifacts=[relpath(stored, context.root)],
+                )
+            )
     return stage_result("build", gates, duration_seconds=duration)
+
+
+def _finish_cached_build(
+    context: Context,
+    stage: StageConfig,
+    gates: list[GateResult],
+    started: float,
+    rendered_commands: list[str],
+) -> StageResult:
+    """Validate restored outputs and write build metadata, as a fresh build would."""
+    expanded = _expand_outputs(context, stage.outputs) if stage.outputs else []
+    build_files: list[Path] = []
+    if expanded:
+        build_files, problems = _collect_build_outputs(context, expanded)
+        if problems:
+            gates.append(
+                failed(
+                    "build.outputs",
+                    "build",
+                    "build outputs",
+                    required=stage.required,
+                    summary="; ".join(problems[:5]),
+                    details={"problems": problems},
+                )
+            )
+        else:
+            gates.append(
+                passed(
+                    "build.outputs",
+                    "build",
+                    "build outputs",
+                    required=stage.required,
+                    summary=f"{len(build_files)} file(s) collected (restored from cache)",
+                    artifacts=[relpath(path, context.root) for path in build_files[:50]],
+                )
+            )
+    if build_files:
+        manifest, manifest_path = write_manifest(
+            kind="build",
+            config=context.config,
+            context=context,
+            artifacts=build_files,
+        )
+        build_info = {
+            "schema_version": 1,
+            "project": context.config.project.name,
+            "version": context.config.project.version,
+            "revision": context.git.revision,
+            "short_revision": context.git.short_revision,
+            "dirty": context.git.dirty,
+            "run_id": context.run_id,
+            "source_date_epoch": context.source_date_epoch,
+            "commands": rendered_commands,
+            "tool_versions": context.tool_versions,
+            "build_files": len(manifest["artifacts"]),
+            "manifest": relpath(manifest_path, context.root),
+            "cache_hit": True,
+        }
+        info_path = context.paths.artifacts_dir / "build-info.json"
+        write_json(info_path, build_info)
+        gates.append(
+            passed(
+                "build.metadata",
+                "build",
+                "build metadata",
+                required=stage.required,
+                summary=(
+                    f"{len(manifest['artifacts'])} artifact(s); "
+                    f"revision {context.git.short_revision or 'nogit'} (cache hit)"
+                ),
+                artifacts=[
+                    relpath(manifest_path, context.root),
+                    relpath(info_path, context.root),
+                ],
+            )
+        )
+    return stage_result("build", gates, duration_seconds=time.monotonic() - started)

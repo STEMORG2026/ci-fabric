@@ -148,6 +148,21 @@ for exact instances that should disappear). Pattern adopted from
 Universal_Software_Auditor's `--baseline` gate (CROSS-PROJECT-FINDINGS.md);
 implemented natively against ci-fabric's own finding fingerprints.
 
+## D13 — Build cache keyed on (revision, rendered commands), clean trees only
+
+**Decision.** `[stages.build].cache = true` stores a green build's declared
+outputs under `.localci/cache/build/<sha256(revision, commands)>`. A later
+run at the same revision with identical rendered commands restores them and
+skips the build. Restores are digest-verified (corruption is a miss), dirty
+trees are never consulted nor stored (a build of a tree nobody can name
+again is not worth keeping), and failures are never cached.
+
+**Rejected.** Keying on input-path digests (the revision already pins every
+tracked byte on a clean tree — anything else is redundant work per run);
+keying on the version string (two commits can share a version); caching
+across environments (the rendered command embeds the interpreter path, so a
+different venv is naturally a different key).
+
 ## Pending decisions (deliberately open)
 
 - A first-class default signer story (cosign keyless) and countersigning the

@@ -188,6 +188,10 @@ class StageConfig:
     exclude: list[str] = field(default_factory=list)
     smoke_commands: list[str] = field(default_factory=list)
     verify_archives: bool = True
+    # [stages.build] Content-addressed build cache: a clean tree at the same
+    # revision with identical rendered commands restores the previous build's
+    # outputs instead of re-running them. Only green builds are stored.
+    cache: bool = False
     scan_secrets: bool = True
     must_contain: list[str] = field(default_factory=list)
     secret_scan: bool = True
@@ -519,7 +523,7 @@ def _parse_stage(name: str, doc: dict[str, Any], where: str, policy: PolicyConfi
         "contract": {"junit_path", "min_test_files", "min_tests", "allow_empty", "test_globs"},
         "e2e": {"junit_path", "min_test_files", "min_tests", "allow_empty", "test_globs"},
         "coverage": {"report_path", "min_percent"},
-        "build": {"outputs"},
+        "build": {"outputs", "cache"},
         "package": {
             "strategy",
             "inputs",
@@ -613,6 +617,7 @@ def _parse_stage(name: str, doc: dict[str, Any], where: str, policy: PolicyConfi
         report_path=_string(doc, "report_path", where),
         min_percent=min_percent,
         outputs=_string_list(doc, "outputs", where),
+        cache=_boolean(doc, "cache", where, False),
         inputs=_string_list(doc, "inputs", where),
         strategy=strategy,
         output=output,

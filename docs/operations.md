@@ -52,6 +52,7 @@ Durable, also gitignored:
 ```
 .localci/
   releases/<version>/     # release bundles (flat layout, SHA256SUMS-verified)
+  cache/build/<key>/      # content-addressed build cache (opt-in, per stage.cache)
   deploy/<env>/           # current.json, previous.json, last-failure.json,
                           # history.jsonl, releases/<deploy_id>/
   githooks/               # generated hook dispatchers
@@ -99,6 +100,9 @@ Failure behavior:
   commands exactly as they run.
 - **Zero-test discovery failures** — intended. Add tests, fix `test_globs`,
   or set `allow_empty = true` with a documented reason.
+- **A stale build cache** (suspected environment influence on artifacts) —
+  delete `.localci/cache/`; the next run rebuilds and re-stores. The cache
+  only ever serves builds whose revision and commands match exactly.
 - **Coverage combine errors after aborted runs** — stale `.coverage*` files
   at the repository root; delete them. Keep coverage data isolated per run
   (see this repository's own `ci.toml` for the pattern).
