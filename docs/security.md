@@ -34,6 +34,35 @@ Suppressing a finding, in order of preference:
 
 Findings are **BLOCKING** by default; a scan finding means the pipeline stops.
 
+## Baseline-gated scanning (legacy debt)
+
+Adopting secret scanning on a repository that already contains credential-
+shaped content should not mean "fix everything before the first green run".
+The baseline records that trade precisely:
+
+```toml
+[stages.security]
+baseline = "secrets-baseline.json"
+```
+
+```sh
+./ci security --update-baseline   # record current findings, then commit the file
+```
+
+The contract, and the differences from the allowlist:
+
+| | allowlist entry | baseline entry |
+| --- | --- | --- |
+| what it accepts | a *shape* (path glob + rule) | an *instance* (exact finding fingerprint) |
+| lifetime | permission, expected to stay | bookkeeping, expected to shrink |
+| on every run | silent | echoed and recorded as visible debt |
+| when the finding disappears | nothing happens | the entry is reported as stale |
+
+New findings always block — the baseline can never accept tomorrow's secret,
+because it is written by the same scanner the gate runs, at the moment you
+choose to accept today's. A configured baseline that is missing fails the
+gate rather than reading as empty.
+
 ## Configuration hygiene (`security.config`)
 
 `[deploy.<env>].env` values that look like literal credentials are rejected at

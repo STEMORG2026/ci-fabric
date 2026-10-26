@@ -53,6 +53,13 @@ class ScanReport:
     findings: list[Finding] = field(default_factory=list)
     allowed: list[Finding] = field(default_factory=list)
     skipped_large: list[str] = field(default_factory=list)
+    # Baseline-gated scanning (see stages/security.py): findings whose exact
+    # fingerprint is accepted in the committed baseline move to `accepted`
+    # (visible debt, never silently suppressed) and only genuinely new
+    # findings stay in `findings`. `stale_baseline` lists accepted
+    # fingerprints that no longer fire, so the baseline can shrink.
+    accepted: list[Finding] = field(default_factory=list)
+    stale_baseline: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -266,6 +273,36 @@ def scan_files(
 
 
 def scan_repository(
+    root: Path,
+    *,
+    include_untracked: bool,
+    allowlist: Sequence[str],
+    exclude_globs: Sequence[str] = (),
+    baseline: Sequence[str] = (),
+) -> ScanReport:
+    baseline_set = set(baseline)
+    report = _scan_repository(
+        root,
+        include_untracked=include_untracked,
+        allowlist=allowlist,
+        exclude_globs=exclude_globs,
+    )
+    if not baseline_set:
+        return report
+    fired = set()
+    new_findings: list[Finding] = []
+    for finding in report.findings:
+        if finding.fingerprint in baseline_set:
+            report.accepted.append(finding)
+            fired.add(finding.fingerprint)
+        else:
+            new_findings.append(finding)
+    report.findings = new_findings
+    report.stale_baseline = sorted(baseline_set - fired)
+    return report
+
+
+def _scan_repository(
     root: Path,
     *,
     include_untracked: bool,

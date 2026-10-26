@@ -40,6 +40,10 @@ makes the local pipeline more rigorous comes in.
   measure themselves into per-run parallel data files and the coverage stage
   combines them (see this repository's `ci.toml`); productizing that pattern
   (`stages.<tier>.measure_coverage = true`) is the remaining polish.
+- ~~**Baseline-gated security adoption.**~~ ~Done in 0.5.0, natively, for the
+  secret scan (decisions.md D12): committed fingerprint baseline,
+  `--update-baseline` one-command adoption, stale-entry reporting. The
+  command-based audit stage composes USA's `--baseline` directly instead.~
 
 ## Versioning and deprecation
 

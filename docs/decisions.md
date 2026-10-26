@@ -132,9 +132,23 @@ process pools (no CPU-bound work to parallelize). Rejected default-on
 until dogfooded: this repository opts in first, the default flips only
 after it proves boring.
 
+## D12 — Secrets baseline: accepted debt is visible, new debt blocks
+
+**Decision.** `[stages.security].baseline` names a committed file of finding
+fingerprints produced by `./ci security --update-baseline` (the same scanner
+the gate runs, so accepting today's findings can never accept tomorrow's).
+New findings fail the gate; accepted findings are recorded in the gate
+details and echoed on every run as visible debt; baseline entries that no
+longer fire are reported so the baseline shrinks when debt is fixed. A
+configured-but-missing baseline is a hard error, never an empty baseline.
+
+**Rejected.** Broader allowlist patterns for legacy findings (an allowlist is
+permission — "this shape is fine, forever" — while a baseline is bookkeeping
+for exact instances that should disappear). Pattern adopted from
+Universal_Software_Auditor's `--baseline` gate (CROSS-PROJECT-FINDINGS.md);
+implemented natively against ci-fabric's own finding fingerprints.
+
 ## Pending decisions (deliberately open)
 
 - A first-class default signer story (cosign keyless) and countersigning the
   provenance document — see `roadmap.md`.
-- Baseline-gated security/audit adoption (fail only on regressions vs a
-  committed baseline — pattern observed in USA, to be designed natively).

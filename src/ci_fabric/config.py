@@ -194,6 +194,9 @@ class StageConfig:
     scan_untracked: bool = False
     scan_config: bool = True
     allowlist: list[str] = field(default_factory=list)
+    # Committed baseline of accepted finding fingerprints (legacy debt):
+    # new findings block, accepted ones are recorded as visible debt.
+    baseline: str | None = None
 
 
 @dataclass(slots=True)
@@ -533,7 +536,7 @@ def _parse_stage(name: str, doc: dict[str, Any], where: str, policy: PolicyConfi
             "must_contain",
             "allowlist",
         },
-        "security": {"secret_scan", "scan_untracked", "allowlist", "scan_config"},
+        "security": {"secret_scan", "scan_untracked", "allowlist", "scan_config", "baseline"},
         "repository": set(),
         "audit": set(),
         "lint": set(),
@@ -624,6 +627,7 @@ def _parse_stage(name: str, doc: dict[str, Any], where: str, policy: PolicyConfi
         scan_untracked=_boolean(doc, "scan_untracked", where, False),
         scan_config=_boolean(doc, "scan_config", where, True),
         allowlist=_string_list(doc, "allowlist", where),
+        baseline=_string(doc, "baseline", where),
     )
     _validate_stage(stage, policy)
     return stage

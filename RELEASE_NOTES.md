@@ -1,3 +1,22 @@
+# ci-fabric 0.5.0
+
+Baseline-gated secret scanning: legacy debt is visible, new debt blocks.
+
+## Added
+
+- **`[stages.security].baseline`** — a committed file of finding fingerprints
+  produced by `./ci security --update-baseline` (the same scanner the gate
+  runs, so accepting today's findings can never accept tomorrow's). New
+  findings block; accepted findings are echoed on every run and recorded in
+  the gate details as visible debt; baseline entries that no longer fire are
+  reported so the baseline shrinks when debt is fixed. A configured baseline
+  that is missing fails the gate rather than reading as empty. The allowlist
+  stays what it always was — permission for a *shape* — while the baseline is
+  bookkeeping for exact *instances*. Pattern adopted from
+  Universal_Software_Auditor's `--baseline` gate; implemented natively
+  against ci-fabric's own finding fingerprints.
+
+# ci-fabric 0.4.0
 # ci-fabric 0.4.0
 
 Gate outcomes tell the truth; test tiers run concurrently.

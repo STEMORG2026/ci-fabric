@@ -86,6 +86,8 @@ Stage-specific keys (validated per stage):
 - `artifact`: `verify_archives`, `scan_secrets`, `must_contain`, `allowlist`,
   `smoke_commands`.
 - `security`: `secret_scan`, `scan_untracked`, `scan_config`, `allowlist`,
+  `baseline` (committed fingerprints of accepted findings — see
+  [security.md](security.md)),
   or bring your own SAST via `command(s)`.
 
 ## `[release]`

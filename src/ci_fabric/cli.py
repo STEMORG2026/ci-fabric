@@ -49,7 +49,7 @@ from .pipeline import ReleaseRequest, describe_pipeline, run_pipeline
 from .release import list_releases, resolve_release
 from .report import finalize, latest_result, report_paths
 from .scaffold import scaffold
-from .util import ensure_dir, isoformat, relpath, utc_now
+from .util import ensure_dir, isoformat, relpath, utc_now, write_json
 
 
 class _RunLock:
@@ -157,6 +157,8 @@ def _finalize_failure(
 def _run_pipeline_command(args: argparse.Namespace, root: Path, config: Config) -> int:
     command: str = args.command
     selected: list[str] | None = None
+    if getattr(args, "update_baseline", False):
+        return _update_secrets_baseline(args, root, config)
     if command == "run":
         selected = []
         for value in args.stages or []:
@@ -778,6 +780,74 @@ def _cmd_docs(args: argparse.Namespace, root: Path, config: Config) -> int:
     return exit_code
 
 
+def _update_secrets_baseline(args: argparse.Namespace, root: Path, config: Config) -> int:
+    """Record the current secret-scan findings as accepted legacy debt.
+
+    The baseline is written from the same scanner the gate uses, so accepting
+    today's findings can never accept tomorrow's. The command refuses to run
+    without a configured `[stages.security].baseline` — a baseline written
+    nowhere in particular is a finding file, not a gate input.
+    """
+    from .security import scan_repository
+
+    with _RunLock(root):
+        try:
+            context = _context(config, clean_env=args.clean_env)
+        except CiError as exc:
+            _fail(str(exc), exc.remediation, exc.exit_code)
+        stage = config.stage("security")
+        target_rel = stage.baseline if stage else None
+        if not target_rel:
+            _fail(
+                "no [stages.security].baseline is configured",
+                'Add `baseline = "secrets-baseline.json"` to [stages.security], '
+                "then re-run `./ci security --update-baseline` and commit the file.",
+            )
+        report = scan_repository(
+            context.root,
+            include_untracked=stage.scan_untracked if stage else False,
+            allowlist=stage.allowlist if stage else [],
+            exclude_globs=stage.exclude if stage else [],
+        )
+        document = {
+            "schema_version": 1,
+            "generated_by": "ci-fabric security --update-baseline",
+            "generated_at": isoformat(context.started_at),
+            "note": (
+                "Accepted findings are visible debt, not permission: new findings "
+                "still fail the gate. Re-run --update-baseline after fixing an "
+                "accepted finding to shrink this list."
+            ),
+            "accepted": [finding.to_dict() for finding in report.findings],
+        }
+        target = (root / context.render(target_rel)).resolve()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        write_json(target, document)
+        _echo(f"accepted {len(report.findings)} finding(s) -> {relpath(target, root)}")
+        _echo("commit the baseline so the gate can read it on every run")
+        gate = passed(
+            "security.baseline",
+            "security",
+            "secrets baseline",
+            required=False,
+            summary=f"{len(report.findings)} finding(s) accepted as legacy debt",
+            artifacts=[relpath(target, root)],
+        )
+        finalize(
+            context,
+            command="security",
+            stages=[stage_result("security", [gate])],
+            status="PASS",
+            exit_code=EXIT_OK,
+            started_at=isoformat(context.started_at),
+            release=None,
+            error=None,
+            metadata={"baseline": relpath(target, root), "accepted": len(report.findings)},
+            echo=_echo,
+        )
+        return EXIT_OK
+
+
 def _cmd_releases(args: argparse.Namespace, root: Path, config: Config) -> int:
     versions = list_releases(root, config)
     if args.json:
@@ -839,6 +909,12 @@ def _build_parser() -> argparse.ArgumentParser:
         command = sub.add_parser(name, help=help_text)
         if name == "format":
             command.add_argument("--fix", action="store_true", help="apply the fix command")
+        if name == "security":
+            command.add_argument(
+                "--update-baseline",
+                action="store_true",
+                help="record current findings as accepted in the configured baseline, then exit",
+            )
         command.set_defaults(handler="pipeline")
 
     run = sub.add_parser("run", help="run an explicit stage selection")

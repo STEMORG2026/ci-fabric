@@ -65,7 +65,7 @@ def test_security_lifecycle_finds_and_resolves_committed_secret(tmp_path: Path) 
     failed = run_cli(root, "security")
     assert failed.returncode == 1
     assert "security.secrets" in failed.stdout
-    assert "1 potential secret(s) in" in failed.stdout
+    assert "1 new potential secret(s) in" in failed.stdout
     assert "rotate" in failed.stdout
     assert "log:" in failed.stdout
 
@@ -172,3 +172,55 @@ def test_docs_command_generates_checks_and_restores(tmp_path: Path) -> None:
     restored = run_cli(root, "docs")
     assert restored.returncode == 0
     assert reference.read_text(encoding="utf-8") == committed_text
+
+
+def test_security_update_baseline_adoption_flow(tmp_path: Path) -> None:
+    from tests.support import base_config
+
+    config = base_config().replace(
+        "scan_config = true",
+        'scan_config = true\nbaseline = "secrets-baseline.json"',
+    )
+    root = make_repo(tmp_path, files={"leak.py": f"aws_key = '{AWS_KEY}'\n"}, config=config)
+
+    # Without the baseline the committed legacy secret blocks the gate...
+    blocked = run_cli(root, "security")
+    assert blocked.returncode == 1
+
+    # ...and without the configuration the update command refuses to write.
+    bare = make_repo(tmp_path, name="bare", files={"leak.py": f"aws_key = '{AWS_KEY}'\n"})
+    refused = run_cli(bare, "security", "--update-baseline")
+    assert refused.returncode == 2
+    assert "no [stages.security].baseline" in refused.stderr
+
+    # One command accepts today's findings; the gate then passes on the same tree.
+    updated = run_cli(root, "security", "--update-baseline")
+    assert updated.returncode == 0, updated.stderr
+    assert "accepted 1 finding(s)" in updated.stdout
+    baseline_file = root / "secrets-baseline.json"
+    document = json.loads(baseline_file.read_text(encoding="utf-8"))
+    assert document["schema_version"] == 1
+    assert len(document["accepted"]) == 1
+    assert document["accepted"][0]["fingerprint"]
+
+    passing = run_cli(root, "security")
+    assert passing.returncode == 0, passing.stdout[-1500:]
+    assert "1 finding(s) accepted by baseline" in passing.stdout
+    document = json.loads((root / ".ci" / "results" / "latest.json").read_text(encoding="utf-8"))
+    secrets_gate = next(
+        g
+        for s in document["stages"]
+        if s["name"] == "security"
+        for g in s["gates"]
+        if g["id"] == "security.secrets"
+    )
+    assert "1 accepted by baseline" in secrets_gate["summary"]
+    assert secrets_gate["details"]["accepted_findings"]
+
+    # A NEW secret still blocks on top of the accepted one.
+    (root / "leak2.py").write_text(f"github_token = 'ghp_{'C' * 36}'\n", encoding="utf-8")
+    commit_all(root, "introduce a new secret")
+    blocked_again = run_cli(root, "security")
+    assert blocked_again.returncode == 1
+    assert "1 new potential secret(s)" in blocked_again.stdout
+    assert "1 accepted by baseline" in blocked_again.stdout
