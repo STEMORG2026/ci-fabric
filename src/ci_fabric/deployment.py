@@ -921,6 +921,55 @@ def deploy(
         artifact_sha256 = sha256_file(artifact)
 
         checks = _check_environment(environment)
+
+        # Bring-your-own signature verification: a bundle that does not verify
+        # is never extracted or started, regardless of any other gate.
+        if config.release.verify_command:
+            verify_log = context.paths.logs_dir / f"deploy-{environment_name}-verify-01.log"
+            verify_result = run_command(
+                context.render(
+                    config.release.verify_command,
+                    extra={"bundle_dir": str(bundle.directory), "version": bundle.version},
+                ),
+                cwd=bundle.directory,
+                env=dict(context.base_env),
+                timeout=120,
+                log_path=verify_log,
+            )
+            checks.append(
+                DeployCheck(
+                    "signature",
+                    verify_result.ok,
+                    (
+                        "signature verified"
+                        if verify_result.ok
+                        else f"verification failed: {verify_result.summary()}"
+                    ),
+                    verify_result.duration_seconds,
+                )
+            )
+            if not verify_result.ok:
+                _append_history(
+                    paths,
+                    {
+                        "action": "deploy",
+                        "ok": False,
+                        "environment": environment_name,
+                        "version": bundle.version,
+                        "error": "release signature verification failed",
+                    },
+                )
+                return DeployOutcome(
+                    ok=False,
+                    environment=environment_name,
+                    action="deploy",
+                    checks=checks,
+                    error=f"release signature verification failed: {verify_result.summary()}",
+                    remediation=(
+                        "Do not deploy a bundle whose signature does not verify. "
+                        "Re-create the release from a trusted revision and re-sign it."
+                    ),
+                )
         failing_env = [check for check in checks if not check.ok]
         if failing_env:
             return DeployOutcome(

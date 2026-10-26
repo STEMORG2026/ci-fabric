@@ -86,12 +86,44 @@ subject digests, build command, environment). Release bundles re-verify all
 checksums before being published, and deploy verifies the archive again
 before extraction.
 
+## Release signing (bring your own signer)
+
+Integrity alone (checksums) proves bytes are unmodified; signing proves
+*who* vouches for them. ci-fabric deliberately ships no crypto and manages no
+keys — it orchestrates your signer through a strict command contract:
+
+```toml
+[release]
+# Runs inside the finished bundle (cwd = bundle) and must exit 0.
+sign_command = "gpg --batch --yes --local-user ci@your.org --detach-sign SHA256SUMS"
+# Runs in the same directory; exit 0 required at deploy time.
+verify_command = "gpg --verify SHA256SUMS.sig SHA256SUMS"
+```
+
+Guarantees enforced by the orchestrator, not by convention:
+
+- a failed `sign_command` aborts the release — nothing is published;
+- after signing, the bundle's checksums are re-verified, so a signer that
+  rewrites what the signature covers is rejected;
+- `verify_command` runs at release time as a self-test, and again as a
+  blocking check before any deploy extracts the bundle;
+- the signature file sits outside `SHA256SUMS` (a signature covers the
+  checksummed content and cannot cover itself), and `release.json` records
+  `signing: "signed (external command)"` or the honest absence of a signer.
+
+`cosign sign-blob`/`cosign verify-blob`, `minisign`, or any tool that exits 0
+on success works identically.
+
 ## Honest limitations
 
-- **No signing or attestation.** `release.json` records
-  `"signing": "not implemented"` and `"attestation": "not implemented"`.
-  Bundle verification is checksum-based and local — it proves integrity, not
-  authorship. Key-based signing (Sigstore/cosign) is the top roadmap item.
+- **No default signer and no key management.** Signing is a command
+  contract; ci-fabric does not bundle crypto, create keys, or talk to a
+  keyring. An unsigned configuration is recorded honestly in `release.json`
+  (`"none (no sign_command configured)"`) — it proves integrity, not
+  authorship.
+- **Provenance is unsigned.** `provenance.json` is a SLSA-shaped in-toto
+  statement, but nothing countersigns it; binding it into the signed
+  `SHA256SUMS` set is the natural next step.
 - **The trust boundary is the repository.** `ci.toml` is code. Review it like
   code; `init` output is deliberately conservative and must be reviewed.
 - **The secret scanner is pattern-based.** It finds credential-shaped strings;

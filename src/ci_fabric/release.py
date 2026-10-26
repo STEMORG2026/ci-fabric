@@ -14,6 +14,7 @@ from typing import Any
 from .config import Config, validate_pep440, validate_semver
 from .context import Context
 from .errors import CiError
+from .runner import run_command
 from .supplychain import load_manifest, verify_checksums, write_checksums
 from .util import (
     ensure_dir,
@@ -431,8 +432,12 @@ def create_release(
             "notes_source": notes_source,
             "generated_notes": generated_notes,
             "tag": f"{config.release.tag_prefix}{resolved}" if tag else None,
-            "signing": "not implemented",
-            "attestation": "not implemented",
+            "signing": (
+                "signed (external command)"
+                if config.release.sign_command
+                else "none (no sign_command configured)"
+            ),
+            "attestation": "provenance.json (unsigned)",
         }
         write_json(temp / "release.json", release_metadata)
 
@@ -448,6 +453,56 @@ def create_release(
         errors = verify_checksums(checksums_out, temp)
         if errors:
             raise CiError("new release bundle failed checksum verification: " + "; ".join(errors))
+
+        # Bring-your-own signing: run inside the finished bundle, then prove the
+        # signer did not touch the checksummed content, then self-test the
+        # signature with verify_command before anything is published.
+        if config.release.sign_command:
+            echo("  signing release bundle")
+            sign_log = context.paths.logs_dir / "release-sign-01.log"
+            sign_result = run_command(
+                context.render(config.release.sign_command, extra={"bundle_dir": str(temp)}),
+                cwd=temp,
+                env=dict(context.base_env),
+                timeout=300,
+                log_path=sign_log,
+            )
+            if not sign_result.ok:
+                raise CiError(
+                    f"release signing failed: {sign_result.summary()}",
+                    remediation=(
+                        "Fix the [release].sign_command; a release without a valid "
+                        "signature is never published. Log: " + relpath(sign_log, context.root)
+                    ),
+                )
+            drifted = verify_checksums(checksums_out, temp)
+            if drifted:
+                raise CiError(
+                    "the sign command modified checksummed bundle content: "
+                    + "; ".join(drifted[:3]),
+                    remediation=(
+                        "Signers must add files only; the signature must cover "
+                        "the exact checksummed content."
+                    ),
+                )
+            if config.release.verify_command:
+                verify_log = context.paths.logs_dir / "release-verify-01.log"
+                verify_result = run_command(
+                    context.render(config.release.verify_command, extra={"bundle_dir": str(temp)}),
+                    cwd=temp,
+                    env=dict(context.base_env),
+                    timeout=300,
+                    log_path=verify_log,
+                )
+                if not verify_result.ok:
+                    raise CiError(
+                        "release signature failed verification at release time: "
+                        f"{verify_result.summary()}",
+                        remediation=(
+                            "Fix the sign/verify command pair; a signature that does not "
+                            "verify is worse than none. Log: " + relpath(verify_log, context.root)
+                        ),
+                    )
 
         tag_name: str | None = None
         if tag:

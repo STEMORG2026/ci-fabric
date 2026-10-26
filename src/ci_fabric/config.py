@@ -199,6 +199,12 @@ class ReleaseConfig:
     changelog: str | None = "CHANGELOG.md"
     tag_prefix: str = "v"
     output_dir: str = ".localci/releases"
+    # Bring-your-own signing: the command runs inside the finished release
+    # bundle (cwd = bundle) and must exit 0; whatever it writes (for example
+    # SHA256SUMS.sig) becomes part of the bundle. verify_command runs in the
+    # same directory and must exit 0; deploy refuses unsigned-tampered bundles.
+    sign_command: str | None = None
+    verify_command: str | None = None
 
 
 @dataclass(slots=True)
@@ -719,7 +725,15 @@ def _parse_policy(doc: dict[str, Any], where: str) -> PolicyConfig:
 def _parse_release(doc: dict[str, Any], where: str) -> ReleaseConfig:
     _check_keys(
         doc,
-        {"require_clean", "require_notes", "changelog", "tag_prefix", "output_dir"},
+        {
+            "require_clean",
+            "require_notes",
+            "changelog",
+            "tag_prefix",
+            "output_dir",
+            "sign_command",
+            "verify_command",
+        },
         where,
     )
     output_dir = _string(doc, "output_dir", where, ".localci/releases") or ".localci/releases"
@@ -730,12 +744,22 @@ def _parse_release(doc: dict[str, Any], where: str) -> ReleaseConfig:
     changelog = _string(doc, "changelog", where, "CHANGELOG.md")
     if changelog is not None:
         _validate_relative(changelog, f"{where}.changelog")
+    sign_command = _string(doc, "sign_command", where)
+    verify_command = _string(doc, "verify_command", where)
+    if not sign_command and verify_command:
+        raise ConfigError(
+            f"{where}.verify_command is configured without sign_command; a release "
+            "cannot be verified against a signature nobody is producing",
+            remediation="Set [release].sign_command, or remove verify_command.",
+        )
     return ReleaseConfig(
         require_clean=_boolean(doc, "require_clean", where, True),
         require_notes=_boolean(doc, "require_notes", where, True),
         changelog=changelog,
         tag_prefix=tag_prefix,
         output_dir=output_dir,
+        sign_command=sign_command,
+        verify_command=verify_command,
     )
 
 

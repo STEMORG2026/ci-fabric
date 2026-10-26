@@ -90,7 +90,10 @@ Stage-specific keys (validated per stage):
 ## `[release]`
 
 `require_clean` (default true — a release is only taken from a committed,
-reproducible tree), `require_notes`, `changelog`, `tag_prefix`, `output_dir`.
+reproducible tree), `require_notes`, `changelog`, `tag_prefix`, `output_dir`,
+`sign_command` and `verify_command` (bring-your-own signing; both run inside
+the bundle directory; see [security.md](security.md)). Configuring
+`verify_command` without `sign_command` is rejected at load time.
 
 ## `[deploy.<env>]`
 

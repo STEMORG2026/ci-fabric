@@ -57,8 +57,11 @@ commands = ["{python} -m mypy src"]
 
 [stages.unit]
 required = true
+# The tier measures itself into the run-scoped parallel data file; the
+# coverage stage combines all tiers instead of re-running the suite.
+env = { COVERAGE_FILE = "{artifacts}/coverage.data" }
 commands = [
-  "{python} -m pytest -q tests/unit --junitxml={artifacts}/junit-unit.xml",
+  "{python} -m coverage run --parallel-mode -m pytest -q tests/unit --junitxml={artifacts}/junit-unit.xml",
 ]
 junit_path = "{artifacts}/junit-unit.xml"
 test_globs = ["tests/unit/**/*.py"]
@@ -66,8 +69,11 @@ min_test_files = 1
 
 [stages.integration]
 required = true
+# The tier measures itself into the run-scoped parallel data file; the
+# coverage stage combines all tiers instead of re-running the suite.
+env = { COVERAGE_FILE = "{artifacts}/coverage.data" }
 commands = [
-  "{python} -m pytest -q tests/integration --junitxml={artifacts}/junit-integration.xml",
+  "{python} -m coverage run --parallel-mode -m pytest -q tests/integration --junitxml={artifacts}/junit-integration.xml",
 ]
 junit_path = "{artifacts}/junit-integration.xml"
 test_globs = ["tests/integration/**/*.py"]
@@ -75,8 +81,11 @@ min_test_files = 1
 
 [stages.contract]
 required = true
+# The tier measures itself into the run-scoped parallel data file; the
+# coverage stage combines all tiers instead of re-running the suite.
+env = { COVERAGE_FILE = "{artifacts}/coverage.data", CI_FABRIC_COVERAGE = "1" }
 commands = [
-  "{python} -m pytest -q tests/contract --junitxml={artifacts}/junit-contract.xml",
+  "{python} -m coverage run --parallel-mode -m pytest -q tests/contract --junitxml={artifacts}/junit-contract.xml",
 ]
 junit_path = "{artifacts}/junit-contract.xml"
 test_globs = ["tests/contract/**/*.py"]
@@ -84,8 +93,11 @@ min_test_files = 1
 
 [stages.e2e]
 required = true
+# The tier measures itself into the run-scoped parallel data file; the
+# coverage stage combines all tiers instead of re-running the suite.
+env = { COVERAGE_FILE = "{artifacts}/coverage.data", CI_FABRIC_COVERAGE = "1" }
 commands = [
-  "{python} -m pytest -q tests/e2e --junitxml={artifacts}/junit-e2e.xml",
+  "{python} -m coverage run --parallel-mode -m pytest -q tests/e2e --junitxml={artifacts}/junit-e2e.xml",
 ]
 junit_path = "{artifacts}/junit-e2e.xml"
 test_globs = ["tests/e2e/**/*.py"]
@@ -93,16 +105,13 @@ min_test_files = 1
 
 [stages.coverage]
 required = true
-# Isolate coverage data per run so stale root-level .coverage files can never
-# poison combination. The in-process run and the deliberately-measured CLI
-# subprocesses (tests/support.py run_cli, gated on CI_FABRIC_COVERAGE=1) both
-# write parallel data against the same run-scoped file, which `coverage
-# combine` then merges. pytest-cov is not used in the pipeline: it force-enables
-# blanket subprocess measurement whose statement-only data cannot combine
-# with branch data (see pyproject [tool.coverage.run] patch = []).
-env = { COVERAGE_FILE = "{artifacts}/coverage.data", CI_FABRIC_COVERAGE = "1" }
+# Test tiers already measured themselves into {artifacts}/coverage.data.*
+# (parallel mode, branch config from pyproject, CLI subprocesses measured
+# deliberately via CI_FABRIC_COVERAGE=1). This stage combines them; the
+# parenthesised fallback keeps a standalone `./ci coverage` self-contained.
+env = { COVERAGE_FILE = "{artifacts}/coverage.data" }
 commands = [
-  "{python} -m coverage run --parallel-mode -m pytest -q tests && {python} -m coverage combine && {python} -m coverage report --fail-under=74 && {python} -m coverage xml -o {artifacts}/coverage.xml",
+  "(ls {artifacts}/coverage.data.* >/dev/null 2>&1 || {python} -m coverage run --parallel-mode -m pytest -q tests) && {python} -m coverage combine {artifacts} && {python} -m coverage report --fail-under=74 && {python} -m coverage xml -o {artifacts}/coverage.xml",
 ]
 report_path = "{artifacts}/coverage.xml"
 min_percent = 74

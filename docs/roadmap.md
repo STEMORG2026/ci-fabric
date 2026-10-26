@@ -6,11 +6,12 @@ makes the local pipeline more rigorous comes in.
 
 ## Near term
 
-- **Release signing and attestation (top priority).** The provenance document
-  is SLSA-shaped but unsigned, and bundle verification is checksum-based.
-  Cosign/Sigstore keyless signing of the release `SHA256SUMS` + provenance, and
-  verification at deploy time, close the last integrity gap between "the bytes
-  are intact" and "these bytes are the ones that were built".
+- **~Done in 0.2.0:~ release signing** ships as a bring-your-own-tool command
+  contract (see security.md): a signer that fails, or rewrites checksummed
+  content, or produces a signature that does not verify, aborts the release;
+  deploy refuses unverified bundles. **Remaining:** a first-class default
+  signer story (cosign keyless) and countersigning the provenance document
+  inside the signed checksum set.
 - **A hosted-CI adapter, not a hosted-CI fork.** When GitHub Actions (or any
   other runner) enters the picture, it must invoke the same canonical commands
   (`./ci ci`, `./ci release`) in a clean checkout. The orchestrator, gates,
@@ -35,10 +36,10 @@ makes the local pipeline more rigorous comes in.
   health/readiness; extend with declared post-deploy invariants (migrations
   applied, feature flags present, queues empty) as first-class gates with the
   same blocking semantics.
-- **Coverage measurement ergonomics.** The `coverage` stage currently requires
-  explicit subprocess opt-in (see this repository's `ci.toml` for the working
-  pattern); a first-class `stages.coverage.measure_subprocess = [...]` option
-  would remove the helper-script ceremony.
+- **Coverage measurement ergonomics.** ~In daily use here:~ test tiers
+  measure themselves into per-run parallel data files and the coverage stage
+  combines them (see this repository's `ci.toml`); productizing that pattern
+  (`stages.<tier>.measure_coverage = true`) is the remaining polish.
 
 ## Explicitly not on the roadmap
 
