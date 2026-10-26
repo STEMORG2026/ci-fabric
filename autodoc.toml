@@ -1,0 +1,73 @@
+# AutoDOC declared context. Every value is a declaration reviewed against this
+# repository's actual content on 2026-10-26; mappings point at files this
+# repository owns and the ci-fabric pipeline re-verifies (links gate, versions
+# gate, generated-drift gate) on every run.
+
+schema = 1
+
+phase = "beta"
+# Matches the project's own honest status (docs/roadmap.md "Status honesty"):
+# full gate model implemented and self-tested; signing is BYO-command;
+# hosted-CI adapter deliberately deferred; no stage parallelism yet.
+phase_declared = "2026-10-26"
+
+profile = "oss-library"
+# A public tool others consume (the package installs into consumer repos).
+
+audience = ["contributors", "external-users"]
+kinds = ["application"]
+# A runnable CLI orchestrator (bin: ./ci), not a library and not a service.
+
+[facts]
+# Detection reads the environment; these overrides record why detection is
+# wrong or insufficient for this repository, with the reason.
+has_env = { value = "false", reason = "ci-fabric reads ambient process variables (PATH, HOME, TZ) but declares its configuration contract as ci.toml; deploy environment variables are explicitly required to arrive via the shell as ${VAR} expansions, and literal credential-shaped values in configuration are rejected at load time." }
+has_ai = { value = "false", reason = "No model calls, no training, no AI-shaped files; the orchestrator runs configured shell commands only." }
+
+handles_personal_data = { value = "false", reason = "ci-fabric reads repository files and writes local run state under the repository root; no accounts, no telemetry, no store of personal data." }
+handles_payments = { value = "false", reason = "A static CI/CD orchestrator; never touches money, cards, or account data." }
+safety_critical = { value = "false", reason = "A wrong or missing gate can block a merge or mislead a reader; it cannot cause physical harm." }
+
+[not_applicable]
+# Kind- and trait-gated documents resolved by the declarations above need no
+# individual entry; anything else deliberately skipped is recorded here with
+# a reason (none today).
+
+[satisfied_by]
+"DEV-B01-001" = ["README.md"]
+"DEV-B01-002" = ["README.md", "docs/roadmap.md"]
+"DEV-B01-003" = ["README.md", "docs/roadmap.md"]
+"DEV-B10-003" = ["scripts/bootstrap.sh", "requirements-dev.lock"]
+"DEV-B08-001" = ["docs/roadmap.md"]
+"DEV-B08-002" = ["docs/roadmap.md"]
+"DEV-B08-003" = ["RELEASE_NOTES.md"]
+"DEV-B11-002" = ["docs/index.md", "CONTRIBUTING.md"]
+"DOC-A06-008" = ["SECURITY.md", "docs/security.md"]
+"DOC-A10-008" = ["LICENSE"]
+"DOC-A15-003" = ["RELEASE_NOTES.md"]
+"DOC-A15-004" = ["RELEASE_NOTES.md"]
+"DOC-A22-005" = ["docs/operations.md"]
+"DOC-A23-001" = ["docs/roadmap.md"]
+"DEV-B03-003" = ["docs/roadmap.md"]
+"DOC-A06-001" = ["docs/security.md"]
+"DOC-A11-002" = ["docs/testing.md"]
+"DOC-A15-005" = ["docs/operations.md"]
+"DOC-A22-001" = ["docs/adoption.md", "docs/operations.md"]
+"DOC-A23-003" = ["docs/roadmap.md"]
+
+[instantiated]
+"DEV-B01-006" = "README.md"
+"DEV-B04-001" = "README.md"
+"DEV-B04-002" = "docs/decisions.md"
+"DEV-B05-001" = "docs/reference.md"
+"DEV-B07-001" = "docs/testing.md"
+"DEV-B10-001" = "docs/adoption.md"
+"DEV-B11-001" = "docs/index.md"
+"DEV-B11-003" = "docs/index.md"
+"DOC-A01-004" = "docs/roadmap.md"
+"DOC-A09-005" = "CONTRIBUTING.md"
+"DOC-A09-009" = "CODE_OF_CONDUCT.md"
+
+[severity]
+# No pins: beta defaults apply. Every core decision is recorded above; a pin
+# that repeats the phase block would be noise.

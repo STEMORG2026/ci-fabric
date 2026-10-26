@@ -19,6 +19,9 @@ max_tracked_file_mib = 5.0
 required_stages = ["unit", "lint"]
 
 [repository]
+# Regenerate the reference doc on every run; the repository.generated gate
+# fails when the committed copy drifts from what the live code produces.
+generated_checks = ["{python} -m ci_fabric docs"]
 required_paths = [
   "README.md",
   "LICENSE",

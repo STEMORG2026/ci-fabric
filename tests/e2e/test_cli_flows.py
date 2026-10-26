@@ -147,3 +147,28 @@ def test_shim_resolves_ci_fabric_src_and_reports_version(tmp_path: Path) -> None
     )
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.startswith("ci-fabric ")
+
+
+def test_docs_command_generates_checks_and_restores(tmp_path: Path) -> None:
+    root = make_repo(tmp_path)
+    reference = root / "docs" / "reference.md"
+    assert not reference.exists()
+
+    created = run_cli(root, "docs")
+    assert created.returncode == 0, created.stderr
+    assert reference.is_file()
+    committed_text = reference.read_text(encoding="utf-8")
+    assert "GENERATED" in committed_text
+
+    fresh = run_cli(root, "docs", "--check")
+    assert fresh.returncode == 0
+
+    reference.write_text("# tampered\n", encoding="utf-8")
+    stale = run_cli(root, "docs", "--check")
+    assert stale.returncode == 1
+    assert "stale" in stale.stdout
+    assert "./ci docs" in stale.stdout
+
+    restored = run_cli(root, "docs")
+    assert restored.returncode == 0
+    assert reference.read_text(encoding="utf-8") == committed_text

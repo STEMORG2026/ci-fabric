@@ -167,3 +167,29 @@ def test_unknown_stage_selection_is_rejected(tmp_path: Path) -> None:
         assert "bogus" in str(exc)
     else:
         raise AssertionError("expected CiError for unknown stage")
+
+
+def test_generated_checks_detect_drift_and_pass_when_clean(tmp_path: Path) -> None:
+    # Deterministic generator with a source of truth, exactly like
+    # `{python} -m ci_fabric docs`: regenerating a stale file rewrites it
+    # (drift); regenerating a current file changes nothing (clean).
+    generator = "cp source.txt gen.txt"
+    root = make_repo(
+        tmp_path,
+        files={"source.txt": "generated\n", "gen.txt": "original\n"},
+        sections=('[stages.lint]\nrequired = true\ncommands = ["true"]',),
+        project=f'\n[repository]\ngenerated_checks = ["{generator}"]',
+    )
+    # First run: the committed gen.txt is stale, so regeneration rewrites it.
+    drifted, _context = run_fixture_pipeline(root, command="validate")
+    generated = gate(drifted, "repository.generated")
+    assert generated.status == "FAIL"
+    assert "generation changed" in generated.summary
+    assert "gen.txt" in generated.details["changes"]
+    # Committing the generated result closes the drift.
+    import subprocess as sp
+
+    sp.run(["git", "-C", str(root), "add", "-A"], check=True)
+    sp.run(["git", "-C", str(root), "commit", "-m", "regenerate"], check=True)
+    clean, _context = run_fixture_pipeline(root, command="validate")
+    assert gate(clean, "repository.generated").status == "PASS"

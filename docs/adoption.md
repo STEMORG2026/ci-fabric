@@ -64,6 +64,22 @@ The dispatcher chains your pre-existing hooks: if you already have a
 run. Installation state is recorded in `.localci/hooks-state.json` and
 uninstall restores the previous configuration precisely.
 
+## Running under MACP (Multi-Agent Coordination Protocol)
+
+If a repository coordinates agents with MACP, `./ci ci` slots straight in as
+a measured gate. MACP gates are argv arrays with bare command names, so the
+repo-local `./ci` entry point goes through a shell wrapper:
+
+```json
+{ "gates": [{ "name": "ci", "commands": [["bash", "./ci", "ci"]] }] }
+```
+
+MACP records `{name, exit, ms, tail}` per gate; the full stage/gate tree with
+skip reasons and remediation hints is in `.ci/results/latest.json` (and the
+40-line tail MACP captures is the pipeline summary). The exit codes align
+(0 pass, 1 blocking gate, 2 configuration error) — see
+[CROSS-PROJECT-FINDINGS.md](../CROSS-PROJECT-FINDINGS.md).
+
 ## Profiles
 
 `init --profile <name>` sets the initial policy posture:

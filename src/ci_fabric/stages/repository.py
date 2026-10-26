@@ -421,7 +421,7 @@ def run_repository_stage(context: Context, echo: Echo) -> StageResult:
                 stop_on_failure=True,
             )
             after = set(run_git(context.root, ["status", "--porcelain=v1"]).stdout.splitlines())
-            changed = sorted(after - before)
+            changed = sorted(line[3:].strip() for line in after - before if line[3:].strip())
             if any(gate.failed for gate in command_gates):
                 for gate in command_gates:
                     gate.id = "repository.generated"

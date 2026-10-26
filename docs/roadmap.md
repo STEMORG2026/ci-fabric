@@ -41,6 +41,22 @@ makes the local pipeline more rigorous comes in.
   combines them (see this repository's `ci.toml`); productizing that pattern
   (`stages.<tier>.measure_coverage = true`) is the remaining polish.
 
+## Versioning and deprecation
+
+- **Versions** are semantic (`VERSION` + `pyproject.toml`, cross-checked by the
+  `repository.versions` gate on every run) and recorded per release in
+  `RELEASE_NOTES.md`.
+- **Configuration is versioned** (`version = 1` in `ci.toml` is mandatory).
+  A schema change bumps the version and the loader refuses the old one with
+  the regeneration command in the remediation — configuration never
+  silently means something new.
+- **Deprecations are announced in RELEASE_NOTES and kept functional through
+  one minor release** with a gate-level warning (the WARNING classification
+  exists for exactly this), then removed. Nothing is removed silently; removal
+  without an announcement is a bug.
+- **Generated docs** deprecate nothing: `docs/reference.md` is regenerated from
+  the live code, so it can never describe a command that no longer exists.
+
 ## Explicitly not on the roadmap
 
 - **A dashboard, a daemon, or an account system.** The result documents are

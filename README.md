@@ -52,12 +52,19 @@ adoption guide and limitations. Unknown configuration keys are hard errors.
 
 ## Documentation
 
-- [Adoption guide](docs/adoption.md) — install, `init`, profiles, hooks
+The full index lives in [docs/index.md](docs/index.md). Start there; the
+generated [reference.md](docs/reference.md) is the canonical command/stage/
+exit-code table (`./ci docs` regenerates it, and the pipeline fails if it
+drifts). The prose set:
+
+- [Adoption guide](docs/adoption.md) — install, `init`, profiles, hooks, MACP
 - [Configuration reference](docs/configuration.md) — every `ci.toml` key
 - [Gates and rationale](docs/gates.md) — classifications, pipeline order, thresholds
+- [Decisions](docs/decisions.md) — ADRs with the alternatives that were rejected
+- [Testing](docs/testing.md) — the four tiers and what each is for
 - [Operations](docs/operations.md) — commands, state layout, releases, deploy, troubleshooting
-- [Security model](docs/security.md) — secret scanning, SAST suppressions, supply-chain artifacts, limitations
-- [Roadmap](docs/roadmap.md) — near/medium term and explicit non-goals
+- [Security model](docs/security.md) — threat model, scanning, SAST suppressions, signing
+- [Roadmap](docs/roadmap.md) — near/medium term, non-goals, versioning policy
 
 ## Development
 

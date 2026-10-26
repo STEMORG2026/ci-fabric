@@ -1,4 +1,39 @@
+# ci-fabric 0.3.0
+
+Documentation becomes top-tier and self-enforcing; the command surface gains
+a generated reference that cannot rot.
+
+## Added
+
+- `./ci docs [--check]`: regenerates `docs/reference.md` — the command table,
+  canonical stage order, exit codes, profiles, and placeholders — from the
+  live code (command tables moved to `ci_fabric.commands`, the single source
+  consumed by both the parser and the generator). A contract test pins the
+  tables to the parser exactly; the reference is deterministic and
+  version-stamped.
+- `[repository].generated_checks` is wired into this repository's pipeline:
+  every run regenerates the reference and **fails on drift**. Documentation
+  rot is now a build failure, not a review comment. (The gate stores clean
+  paths, not porcelain codes, in its evidence.)
+- Full documentation set: `docs/index.md` (index + freshness policy),
+  `docs/decisions.md` (ADRs with rejected alternatives), `docs/testing.md`
+  (the four-tier strategy), `SECURITY.md`, `CONTRIBUTING.md`,
+  `CODE_OF_CONDUCT.md`, versioning/deprecation policy in `docs/roadmap.md`,
+  and a MACP gate-interop note in `docs/adoption.md`.
+- Documentation governance declared: `autodoc.toml` (AutoDOC phase beta,
+  beta-ready 16/16, zero required findings — every mapping points at an owned,
+  pipeline-verified file) and `CROSS-PROJECT-FINDINGS.md`, the read-only
+  cross-project audit of MACP, Universal_Software_Auditor and AutoDOC with
+  baselines for hourly delta cycles.
+
+## Fixed
+
+- `__version__` now resolves from the VERSION file in checkouts (it said
+  0.1.0 through the 0.2.0 release — caught by the freshly generated
+  reference) and from installed metadata in wheels.
+
 # ci-fabric 0.2.0
+
 
 Release signing, and coverage measurement that does not run the suite twice.
 

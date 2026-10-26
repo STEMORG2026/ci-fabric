@@ -18,6 +18,10 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 from . import __version__
+from .commands import (
+    DEPLOY_COMMAND_HELP,
+    PIPELINE_COMMAND_HELP,
+)
 from .config import PIPELINE_STAGES, PROFILES, STAGE_NAMES, Config, load_config
 from .context import Context, create_context
 from .deployment import (
@@ -29,6 +33,7 @@ from .deployment import (
     status as deployment_status,
     undeploy,
 )
+from .docgen import REFERENCE_RELATIVE_PATH, generate_reference
 from .doctor import diagnose, print_report
 from .errors import (
     EXIT_CONFIG,
@@ -45,28 +50,6 @@ from .release import list_releases, resolve_release
 from .report import finalize, latest_result, report_paths
 from .scaffold import scaffold
 from .util import ensure_dir, isoformat, relpath, utc_now
-
-PIPELINE_COMMANDS = (
-    "validate",
-    "check",
-    "test",
-    "build",
-    "package",
-    "security",
-    "audit",
-    "format",
-    "lint",
-    "typecheck",
-    "unit",
-    "integration",
-    "contract",
-    "e2e",
-    "coverage",
-    "artifact",
-    "ci",
-    "run",
-    "release",
-)
 
 
 class _RunLock:
@@ -740,6 +723,61 @@ def _cmd_version(args: argparse.Namespace, root: Path, config: Config) -> int:
     return EXIT_OK
 
 
+def _cmd_docs(args: argparse.Namespace, root: Path, config: Config) -> int:
+    context = create_context(config.root, config, clean_env=args.clean_env)
+    text = generate_reference(config, context)
+    target = root / REFERENCE_RELATIVE_PATH
+    current = target.read_text(encoding="utf-8") if target.is_file() else None
+    changed = current != text
+
+    if args.check:
+        gate = (
+            passed(
+                "docs.reference", "docs", "generated reference", required=True, summary="up to date"
+            )
+            if not changed
+            else errored(
+                "docs.reference",
+                "docs",
+                "generated reference",
+                required=True,
+                summary=f"{REFERENCE_RELATIVE_PATH} is stale",
+                remediation="Run `./ci docs`, review the diff, and commit it.",
+            )
+        )
+    else:
+        if changed:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            from .util import write_text_atomic
+
+            write_text_atomic(target, text)
+        gate = passed(
+            "docs.reference",
+            "docs",
+            "generated reference",
+            required=True,
+            summary=f"{REFERENCE_RELATIVE_PATH} {'regenerated' if changed else 'unchanged'}",
+            artifacts=[REFERENCE_RELATIVE_PATH] if changed else [],
+        )
+
+    _echo(f"{REFERENCE_RELATIVE_PATH}: {'changed' if changed else 'unchanged'}")
+    stage = stage_result("docs", [gate])
+    exit_code = EXIT_OK if (gate.status == "PASS" or not args.check) else EXIT_GATE_FAILED
+    finalize(
+        context,
+        command="docs",
+        stages=[stage],
+        status="PASS" if not (args.check and changed) else "FAIL",
+        exit_code=exit_code,
+        started_at=isoformat(context.started_at),
+        release=None,
+        error=None,
+        metadata={"check": bool(args.check), "changed": changed},
+        echo=_echo,
+    )
+    return exit_code
+
+
 def _cmd_releases(args: argparse.Namespace, root: Path, config: Config) -> int:
     versions = list_releases(root, config)
     if args.json:
@@ -797,25 +835,7 @@ def _build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--json", action="store_true")
     doctor.set_defaults(handler=_cmd_doctor)
 
-    for name, help_text in (
-        ("validate", "repository integrity gates"),
-        ("check", "format, lint, static analysis and secret scanning"),
-        ("test", "unit, integration, contract, e2e and coverage"),
-        ("build", "build, package and validate artifacts"),
-        ("package", "package and validate the release artifact"),
-        ("security", "secret scan, SAST and dependency audit"),
-        ("audit", "dependency audit only"),
-        ("format", "format check (or --fix)"),
-        ("lint", "lint"),
-        ("typecheck", "static type checking"),
-        ("unit", "unit tests"),
-        ("integration", "integration tests"),
-        ("contract", "contract tests"),
-        ("e2e", "end-to-end tests"),
-        ("coverage", "coverage report and threshold"),
-        ("artifact", "artifact validation only"),
-        ("ci", "full local pipeline"),
-    ):
+    for name, help_text in PIPELINE_COMMAND_HELP:
         command = sub.add_parser(name, help=help_text)
         if name == "format":
             command.add_argument("--fix", action="store_true", help="apply the fix command")
@@ -848,21 +868,18 @@ def _build_parser() -> argparse.ArgumentParser:
     deploy_parser.add_argument("--version", dest="deploy_version", help="release version")
     deploy_parser.set_defaults(handler="deploy")
 
-    for name, help_text in (
-        ("rollback", "roll back to the previous deployment"),
-        ("undeploy", "stop the current deployment"),
-        ("health", "check the current deployment health"),
-        ("smoke", "run the current deployment smoke checks"),
-    ):
-        command = sub.add_parser(name, help=help_text)
-        command.add_argument("--env", required=True, help="deployment environment name")
-        command.set_defaults(handler="deploy")
-
     deploy_status = sub.add_parser("deploy-status", help="show deployment state")
     deploy_status.add_argument("--env", help="one environment (default: all)")
     deploy_status.add_argument("--json", action="store_true")
     deploy_status.add_argument("--no-http", action="store_true", help="skip HTTP probing")
     deploy_status.set_defaults(handler=_cmd_deploy_status)
+
+    for name, help_text in DEPLOY_COMMAND_HELP:
+        if name in {"deploy", "deploy-status"}:
+            continue  # defined above with their specific options and handlers
+        command = sub.add_parser(name, help=help_text)
+        command.add_argument("--env", required=True, help="deployment environment name")
+        command.set_defaults(handler="deploy")
 
     hooks = sub.add_parser("hooks", help="install, remove or inspect Git hooks")
     hook_sub = hooks.add_subparsers(dest="hook_command", required=True)
@@ -891,6 +908,10 @@ def _build_parser() -> argparse.ArgumentParser:
     clean.add_argument("--all", action="store_true", help="remove every previous run")
     clean.add_argument("--keep", type=int, help="number of recent runs to keep")
     clean.set_defaults(handler=_cmd_clean)
+
+    docs = sub.add_parser("docs", help="regenerate docs/reference.md from the live code")
+    docs.add_argument("--check", action="store_true", help="fail if stale; do not write")
+    docs.set_defaults(handler=_cmd_docs)
 
     version = sub.add_parser("version", help="print the tool version")
     version.set_defaults(handler=_cmd_version)
