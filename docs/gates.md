@@ -13,7 +13,10 @@ or artifact, and a remediation hint.
 | `WARNING` | the stage is optional | failure or warning marks the stage `WARN`, run still exits 0 |
 | `INFO` | informational recorders | never blocks |
 
-A run is `PASS` when no gate blocked, `WARN` when a stage warned or an
+Gate status is one of `PASS`, `FAIL`, `WARN`, `SKIP`, `ERROR`. `ERROR`
+means *no verdict* — the tool was missing, the process never started, or
+the command timed out — never "found problems"; on a blocking stage it
+blocks exactly like `FAIL` (see decisions.md D10). A run is `PASS` when no gate blocked, `WARN` when a stage warned or an
 advisory gate failed, `FAIL` when a blocking gate failed. With
 `fail_fast = true` (default) every stage after a blocking failure is skipped
 with an explicit `skipped_reason` — a skip is always visible in the report.

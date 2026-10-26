@@ -10,6 +10,7 @@ description = "Local-first, repository-native CI/CD orchestration for any stack.
 [policy]
 profile = "strict"
 fail_fast = true
+parallel_test_tiers = true
 require_clean_worktree = "release"
 keep_runs = 20
 require_test_discovery = true

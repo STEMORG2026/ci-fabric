@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import threading
 import time
 import traceback
 from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
-from .config import PIPELINE_STAGES, Config
+from .config import PIPELINE_STAGES, TEST_STAGES, Config
 from .context import Context
 from .errors import CiError
 from .gates import StageResult, errored, stage_result
@@ -251,22 +253,74 @@ def run_pipeline(
         )
 
     total = len(selected)
-    for index, name in enumerate(selected, start=1):
+    parallel_lock = threading.Lock()
+    metadata["parallel_stages"] = []
+
+    def run_one(name: str) -> StageResult:
+        """Execute one stage with a thread-safe, name-prefixed echo."""
+
+        def stage_echo(message: str) -> None:
+            with parallel_lock:
+                echo(f"  [{name}] {message}")
+
+        stage_started = time.monotonic()
+        try:
+            return _dispatch(context=context, name=name, echo=stage_echo, fix=fix)
+        except CiError as exc:
+            return _failed_stage(context, name, str(exc), time.monotonic() - stage_started)
+        except Exception as exc:
+            detail = f"{type(exc).__name__}: {exc}"
+            traceback.print_exc()
+            return _failed_stage(context, name, detail, time.monotonic() - stage_started)
+
+    position = 0
+    while position < len(selected):
+        index = position + 1
+        name = selected[position]
+
+        # The contiguous test-tier block may run concurrently (opt-in). The
+        # result document keeps canonical order either way — only wall-clock
+        # time changes, never the contract.
+        span = None
+        if config.policy.parallel_test_tiers and not failure_seen and name in TEST_STAGES:
+            end = position
+            while end < len(selected) and selected[end] in TEST_STAGES:
+                end += 1
+            if end - position >= 2:
+                span = (position, end)
+
+        if span is not None:
+            block = selected[span[0] : span[1]]
+            echo("")
+            echo(
+                f"[{index}-{index + len(block) - 1}/{total}] "
+                f"{', '.join(block)}: running in parallel"
+            )
+            started_block = time.monotonic()
+            with ThreadPoolExecutor(max_workers=len(block)) as pool:
+                block_stages = list(pool.map(run_one, block))
+            for block_stage in block_stages:
+                results.append(block_stage)
+                _print_stage(block_stage, echo)
+                if block_stage.blocking_failure:
+                    failure_seen = True
+            echo(
+                f"  {' / '.join(f'{s.status} {s.name}' for s in block_stages)} "
+                f"({human_duration(time.monotonic() - started_block)}, parallel)"
+            )
+            metadata["parallel_stages"] = list(block)
+            position = span[1]
+            continue
+
         if failure_seen and config.policy.fail_fast:
             results.append(_skip(name, "fail-fast after a blocking failure"))
             echo(f"[{index}/{total}] {name}: skipped (fail-fast)")
+            position += 1
             continue
         echo("")
         echo(f"[{index}/{total}] {name}")
         stage_started = time.monotonic()
-        try:
-            stage = _dispatch(context=context, name=name, echo=echo, fix=fix)
-        except CiError as exc:
-            stage = _failed_stage(context, name, str(exc), time.monotonic() - stage_started)
-        except Exception as exc:
-            detail = f"{type(exc).__name__}: {exc}"
-            traceback.print_exc()
-            stage = _failed_stage(context, name, detail, time.monotonic() - stage_started)
+        stage = run_one(name)
         if stage.duration_seconds <= 0:
             stage.duration_seconds = time.monotonic() - stage_started
         results.append(stage)
@@ -277,6 +331,7 @@ def run_pipeline(
             f"  {stage.status} {name} ({human_duration(stage.duration_seconds)})"
             + (f" — {stage.skipped_reason}" if stage.skipped_reason else "")
         )
+        position += 1
 
     if release is not None and not failure_seen:
         echo("")

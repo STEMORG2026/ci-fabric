@@ -134,4 +134,14 @@ Interfaces relevant to ci-fabric:
 ## Cycle log
 
 - Cycle 1 (2026-10-26): first full read (see baselines). Findings above.
-  Next delta cycle: `git log <baseline>..HEAD` per repo, ~1 hour later.
+- Cycle 2 (2026-10-26): deltas — MACP unchanged; AutoDOC one docs commit
+  (USA-audit fixes, no interface impact); USA shipped `feat(macp): a gate
+  has three outcomes, not two` — missing-tool/timeout gates record
+  `unverified` instead of `fail` so an unread gate can never masquerade as
+  a red one. **Adopted into ci-fabric the same cycle** (decisions.md D10):
+  exit 127 / never-started / timed-out gates now record `ERROR` +
+  `details.outcome = "unverified"`, blocking unchanged; 4 contract tests.
+  Also shipped this cycle: opt-in `parallel_test_tiers` (D11). New USA
+  baseline to read at next delta: `432217e`.
+- Cycle 3 (pending): delta from `432217e` (USA), `d3f126f` (AutoDOC),
+  `1adfd61` (MACP).

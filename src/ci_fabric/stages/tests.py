@@ -283,8 +283,16 @@ def run_test_stage(
                 )
             elif exit_code == 126:
                 remediation = "The command is not executable. Check file permissions."
+            # No verdict vs verdict (see stages/base.py): a missing tool,
+            # a timeout, or a command that never started is recorded as the
+            # absence of a measurement, never as a test failure.
+            no_verdict = last_timed_out or exit_code is None or exit_code == 127
+            factory = errored if no_verdict else failed
+            details: dict[str, object] = {"runs": run_results, "flaky": flaky}
+            if no_verdict:
+                details["outcome"] = "unverified"
             gates.append(
-                failed(
+                factory(
                     f"{name}.{index:02d}",
                     name,
                     command,
@@ -294,7 +302,7 @@ def run_test_stage(
                     exit_code=exit_code,
                     log=last_log,
                     remediation=remediation,
-                    details={"runs": run_results, "flaky": flaky},
+                    details=details,
                 )
             )
             break

@@ -103,6 +103,35 @@ is never duplicated between local and hosted paths.
 **Rejected.** Shipping parallel workflow YAML now: it would fork the gate
 logic at the exact moment the local contract is still hardening.
 
+## D10 — Three gate outcomes: pass, fail, and unverified
+
+**Decision.** A missing tool (exit 127), a command that never started, or a
+timeout records gate status `ERROR` with `details.outcome = "unverified"`;
+a genuine failure records `FAIL`. Enforcement is identical — `ERROR` on a
+blocking stage blocks exactly like `FAIL`.
+
+**Rejected.** Keeping the conflation (both `FAIL`): "pytest is not installed"
+and "pytest found failing tests" are different facts, and a result document
+that cannot tell them apart reads as evidence when it is not. Pattern
+adopted from Universal_Software_Auditor's gate records (see
+`CROSS-PROJECT-FINDINGS.md`, cycle 2).
+
+**Revisit when.** Never — this is strictly more information at zero cost.
+
+## D11 — Test tiers may run concurrently; the document order never changes
+
+**Decision.** `[policy].parallel_test_tiers` (opt-in) runs the contiguous
+unit/integration/contract/e2e block in a thread pool. Stages are subprocess
+executors (I/O bound), coverage data files are per-process by construction,
+and the result document keeps canonical order regardless of execution order —
+`metadata.parallel_stages` records what ran concurrently.
+
+**Rejected.** A full stage DAG (format/lint/typecheck have no ordering
+hazards with each other, but the win is ~0.4s and the risk is real);
+process pools (no CPU-bound work to parallelize). Rejected default-on
+until dogfooded: this repository opts in first, the default flips only
+after it proves boring.
+
 ## Pending decisions (deliberately open)
 
 - A first-class default signer story (cosign keyless) and countersigning the

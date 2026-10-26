@@ -9,7 +9,7 @@ from pathlib import Path
 
 from ..context import Context
 from ..errors import CiError
-from ..gates import GateResult, StageResult, failed, passed, skipped, stage_result
+from ..gates import GateResult, StageResult, errored, failed, passed, skipped, stage_result
 from ..runner import run_command
 from ..util import parse_xml_file, read_text, relpath
 from .base import Echo, disabled_gate
@@ -114,8 +114,9 @@ def run_coverage_stage(context: Context, echo: Echo) -> StageResult:
     )
     relative_log = relpath(log, context.root)
     if not result.ok:
+        no_verdict = result.timed_out or result.exit_code is None or result.exit_code == 127
         gates.append(
-            failed(
+            (errored if no_verdict else failed)(
                 "coverage.command",
                 "coverage",
                 command,
@@ -126,6 +127,7 @@ def run_coverage_stage(context: Context, echo: Echo) -> StageResult:
                 duration_seconds=result.duration_seconds,
                 log=relative_log,
                 remediation="Fix the coverage command; no threshold can be verified without it.",
+                details={"outcome": "unverified"} if no_verdict else {},
             )
         )
         return stage_result("coverage", gates, duration_seconds=time.monotonic() - started)

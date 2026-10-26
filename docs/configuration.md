@@ -46,6 +46,7 @@ silently picks whatever is on `PATH`. Use `${NAME}` for environment variables
 | `audit_required` | profile-based | strict/release insist on an audit command |
 | `allow_no_git` | `false` | must be set explicitly to run outside a repository |
 | `max_tracked_file_mib` | `5.0` | tracked-file size ceiling |
+| `parallel_test_tiers` | `false` | run the contiguous unit/integration/contract/e2e block concurrently; result order is unaffected |
 
 ## `[repository]`
 

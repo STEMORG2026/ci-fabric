@@ -141,6 +141,10 @@ class PolicyConfig:
     audit_required: bool = False
     allow_no_git: bool = False
     max_tracked_file_mib: float = 5.0
+    # Run the contiguous block of test tiers (unit/integration/contract/e2e)
+    # concurrently when two or more are selected. Results are reported in
+    # canonical order either way; only wall-clock time changes.
+    parallel_test_tiers: bool = False
 
 
 @dataclass(slots=True)
@@ -683,6 +687,7 @@ def _parse_policy(doc: dict[str, Any], where: str) -> PolicyConfig:
         "fail_fast",
         "require_clean_worktree",
         "keep_runs",
+        "parallel_test_tiers",
         "required_stages",
         "require_test_discovery",
         "audit_required",
@@ -712,6 +717,7 @@ def _parse_policy(doc: dict[str, Any], where: str) -> PolicyConfig:
     return PolicyConfig(
         profile=profile,
         fail_fast=_boolean(doc, "fail_fast", where, True),
+        parallel_test_tiers=_boolean(doc, "parallel_test_tiers", where, False),
         require_clean_worktree=require_clean,
         keep_runs=_integer(doc, "keep_runs", where, 20, minimum=1, maximum=10_000),
         required_stages=required_stages,

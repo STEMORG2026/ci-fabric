@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Any
 
 from ..config import StageConfig
 from ..context import Context
-from ..gates import GateResult, failed, passed, skipped
+from ..gates import GateResult, errored, failed, passed, skipped
 from ..runner import CommandResult, exit_remediation, run_command
 from ..util import relpath
 
@@ -76,8 +77,17 @@ def run_stage_commands(
                 )
             )
         else:
+            # Three outcomes, not two (pattern adopted from USA): a missing
+            # tool, a process that never started, or a timeout is the *absence*
+            # of a verdict, not a verdict of fail. "trivy is not installed"
+            # must never be recorded as "trivy found something". Enforcement is
+            # unchanged — ERROR on a blocking gate blocks exactly like FAIL —
+            # only the machine-readable label changes.
+            no_verdict = result.timed_out or result.exit_code is None or result.exit_code == 127
+            factory = errored if no_verdict else failed
+            extra_details: dict[str, Any] = {"outcome": "unverified"} if no_verdict else {}
             gates.append(
-                failed(
+                factory(
                     f"{stage_label}.{index:02d}",
                     stage_label,
                     command,
@@ -88,6 +98,7 @@ def run_stage_commands(
                     duration_seconds=result.duration_seconds,
                     log=relative_log,
                     remediation=remediation,
+                    details=extra_details,
                 )
             )
     return gates, results
