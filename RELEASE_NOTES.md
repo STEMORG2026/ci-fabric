@@ -1,3 +1,23 @@
+# ci-fabric 0.4.0
+
+Gate outcomes tell the truth; test tiers run concurrently.
+
+## Added
+
+- **Three gate outcomes** (pattern adopted from Universal_Software_Auditor's
+  gate records): a missing tool, a command that never started, or a timeout
+  records `ERROR` with `details.outcome = "unverified"` — the *absence* of a
+  verdict — while genuine failures stay `FAIL`. "pytest is not installed"
+  can never be recorded as "pytest found failing tests". Blocking
+  enforcement is unchanged; only the machine-readable label improves.
+- **`[policy].parallel_test_tiers`** (opt-in, enabled for this repository):
+  the contiguous unit/integration/contract/e2e block runs in a thread pool.
+  The result document keeps canonical order and records what ran in
+  `metadata.parallel_stages`; coverage data files are per-process by
+  construction, so concurrent tiers combine cleanly. Self pipeline wall
+  clock: 3m28s -> 1m48s.
+
+# ci-fabric 0.3.0
 # ci-fabric 0.3.0
 
 Documentation becomes top-tier and self-enforcing; the command surface gains
