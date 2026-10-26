@@ -20,9 +20,10 @@ makes the local pipeline more rigorous comes in.
   and hosted paths — that duplication is precisely what this project exists to
   prevent. (OpenCode-hosted CI note: no workflow files are created in this
   repository by design in the current phase.)
-- **Stage parallelism.** Test tiers are independent and could run
-  concurrently behind the same gate/report tree. The result document already
-  records per-stage durations, so speedup is measurable and honest.
+- **~Done in 0.4.0:~ stage parallelism** for the test tiers
+  (`[policy].parallel_test_tiers`, opt-in; this repository runs it on). A full
+  stage DAG remains deliberately rejected (decisions.md D11): format/lint/
+  typecheck offer ~0.4s of win for real ordering risk.
 
 ## Medium term
 
