@@ -129,7 +129,7 @@ def test_release_bundle_is_created_verified_and_protected(tmp_path: Path) -> Non
     release_json = json.loads((bundle_dir / "release.json").read_text(encoding="utf-8"))
     assert release_json["version"] == "1.0.0"
     assert release_json["revision"] and not release_json["dirty"]
-    assert release_json["signing"] == "none (no sign_command configured)"
+    assert release_json["signing"] == "none (no signer configured)"
     # The attestation label states exactly what the bundle proves: provenance
     # is checksummed, but with no signer nothing vouches for its authorship.
     assert release_json["attestation"] == (

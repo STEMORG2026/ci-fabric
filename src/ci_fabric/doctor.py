@@ -307,6 +307,47 @@ def diagnose(context: Context) -> DoctorReport:
                     "Stop the existing service or set port = 0 for automatic allocation.",
                 )
             )
+    if context.config.release.signer == "cosign-keyless":
+        cosign_path = shutil.which("cosign", path=context.base_env.get("PATH"))
+        checks.append(
+            DoctorCheck(
+                "release.cosign",
+                cosign_path is not None,
+                True,
+                (f"cosign -> {cosign_path}" if cosign_path else "cosign not on PATH"),
+                'Install cosign, or set [release].signer = "none".',
+            )
+        )
+        missing_fields = [
+            name
+            for name, value in (
+                (
+                    "signing_identity",
+                    context.config.release.signing_identity
+                    or os.environ.get("COSIGN_CERTIFICATE_IDENTITY"),
+                ),
+                (
+                    "signing_issuer",
+                    context.config.release.signing_issuer
+                    or os.environ.get("COSIGN_CERTIFICATE_OIDC_ISSUER"),
+                ),
+            )
+            if not value
+        ]
+        checks.append(
+            DoctorCheck(
+                "release.cosign-identity",
+                not missing_fields,
+                True,
+                (
+                    "signing identity and issuer configured"
+                    if not missing_fields
+                    else "missing: " + ", ".join(missing_fields)
+                ),
+                "Set [release].signing_identity and [release].signing_issuer, or "
+                "export COSIGN_CERTIFICATE_IDENTITY / COSIGN_CERTIFICATE_OIDC_ISSUER.",
+            )
+        )
     try:
         free = shutil.disk_usage(context.root).free
         checks.append(

@@ -328,11 +328,39 @@ it); rebuilding the image on rollback (a rollback must restore *proved* bytes,
 and re-running a build is the one action that can silently produce different
 ones).
 
+## D20 — The default signer is cosign keyless, invoked not embedded
+
+**Decision.** `[release].signer = "cosign-keyless"` (with `signing_identity`
+and `signing_issuer`) makes ci-fabric invoke `cosign sign-blob --bundle` at
+release time and `cosign verify-blob` at release and deploy time, through the
+same strict contract as a bring-your-own signer: a failed sign aborts the
+release, checksums are re-verified after signing, the signature is self-tested
+before publish, and deploy refuses an unverifiable bundle. ci-fabric manages
+no keys and embeds no crypto; cosign owns identity through ambient OIDC
+(GitHub Actions, Google, `SIGSTORE_ID_TOKEN`, …). The identity and bundle
+filename are recorded in `release.json` and used for deploy-time verification.
+
+**Why.** The honest gap left by 0.8.1 was authorship: integrity alone proves
+bytes are unmodified, not who vouches for them. A default signer had to add
+key handling and an out-of-the-box authority without turning ci-fabric into a
+crypto library or a keyring. Delegating to cosign keeps the BYO contract
+machinery as the single enforcement path and reuses the same re-verify and
+deploy-time gates; keyless mode removes key management entirely by binding
+authorship to an OIDC identity and a transparency-log entry. Recording
+`signing_identity`/`signing_issuer`/`verify_command` in the checksummed
+`release.json` means a tampered identity fails the same way a tampered byte
+does.
+
+**Rejected.** Embedding a crypto library (a new dependency, a new trust root,
+and a new class of vulnerability for a tool whose whole posture is "no crypto");
+generating and storing long-lived signing keys (key management is the hard
+part and the part that rots); making cosign the default without opt-in
+(network and interactive OIDC in a local-first tool would surprise users and
+hang in CI); silently falling back to unsigned when cosign is missing (that is
+exactly the unprovable claim the 0.8.1 label work removed).
+
 ## Pending decisions (deliberately open)
 
-- A first-class default signer story (cosign keyless) — coverage of the
-  provenance document inside the signed checksum set already exists, so what is
-  open is key handling and an out-of-the-box authority — see `roadmap.md`.
 - A mechanical `./ci notes --add <version>` command that prepends the new
   section to the changelog. D16's gate now *catches* the error class; a command
   that composes the section would *prevent* it. Not built yet: it is new

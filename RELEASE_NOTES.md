@@ -1,3 +1,29 @@
+# ci-fabric 0.11.0
+
+A default signer: cosign keyless, invoked not embedded.
+
+## Added
+
+- **`[release].signer = "cosign-keyless"`** — a first-class default signer.
+  ci-fabric invokes `cosign sign-blob --bundle` at release time and
+  `cosign verify-blob` at release and deploy time, through the same strict
+  contract as a bring-your-own signer: a failed sign aborts the release,
+  checksums are re-verified after signing, the signature is self-tested before
+  publish, and deploy refuses an unverifiable bundle. ci-fabric manages no
+  keys and embeds no crypto; cosign owns identity through ambient OIDC
+  (GitHub Actions, Google, `SIGSTORE_ID_TOKEN`, …). Configure
+  `signing_identity` and `signing_issuer`; the identity, issuer, bundle filename
+  and verify command are recorded in the checksummed `release.json` and reused
+  at deploy time.
+- `./ci doctor` reports `release.cosign` and `release.cosign-identity` when the
+  default signer is enabled.
+
+## Changed
+
+- Unsigned releases are now recorded as `"none (no signer configured)"` (was
+  `"none (no sign_command configured)"`); the label names the state, not the
+  mechanism.
+
 # ci-fabric 0.10.1
 
 An image deployment says what it is.

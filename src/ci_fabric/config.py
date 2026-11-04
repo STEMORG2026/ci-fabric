@@ -225,6 +225,12 @@ class ReleaseConfig:
     # same directory and must exit 0; deploy refuses unsigned-tampered bundles.
     sign_command: str | None = None
     verify_command: str | None = None
+    # First-class default signer: "none" (bring your own or unsigned) or
+    # "cosign-keyless" (Sigstore keyless via ambient OIDC; ci-fabric invokes
+    # cosign, manages no keys). Mutually exclusive with sign_command.
+    signer: str = "none"
+    signing_identity: str | None = None
+    signing_issuer: str | None = None
 
 
 @dataclass(slots=True)
@@ -840,6 +846,9 @@ def _parse_release(doc: dict[str, Any], where: str) -> ReleaseConfig:
             "output_dir",
             "sign_command",
             "verify_command",
+            "signer",
+            "signing_identity",
+            "signing_issuer",
         },
         where,
     )
@@ -853,12 +862,33 @@ def _parse_release(doc: dict[str, Any], where: str) -> ReleaseConfig:
         _validate_relative(changelog, f"{where}.changelog")
     sign_command = _string(doc, "sign_command", where)
     verify_command = _string(doc, "verify_command", where)
+    signer = _string(doc, "signer", where, "none") or "none"
+    if signer not in {"none", "cosign-keyless"}:
+        raise ConfigError(
+            f"{where}.signer must be 'none' or 'cosign-keyless'",
+            remediation='Use signer = "cosign-keyless" or remove the key.',
+        )
+    signing_identity = _string(doc, "signing_identity", where)
+    signing_issuer = _string(doc, "signing_issuer", where)
     if not sign_command and verify_command:
         raise ConfigError(
             f"{where}.verify_command is configured without sign_command; a release "
             "cannot be verified against a signature nobody is producing",
             remediation="Set [release].sign_command, or remove verify_command.",
         )
+    if sign_command and signer != "none":
+        raise ConfigError(
+            f"{where}.signer is set alongside sign_command; choose one signer",
+            remediation="Remove signer, or remove sign_command/verify_command.",
+        )
+    if signer == "cosign-keyless" and (sign_command or verify_command):
+        raise ConfigError(
+            f"{where}.cosign-keyless cannot be combined with sign_command/verify_command",
+            remediation="Remove sign_command and verify_command.",
+        )
+    if signer == "cosign-keyless" and (not signing_identity or not signing_issuer):
+        # Allowed: validated at release time; but warn? Config stays strict-ish.
+        pass
     return ReleaseConfig(
         require_clean=_boolean(doc, "require_clean", where, True),
         require_notes=_boolean(doc, "require_notes", where, True),
@@ -867,6 +897,9 @@ def _parse_release(doc: dict[str, Any], where: str) -> ReleaseConfig:
         output_dir=output_dir,
         sign_command=sign_command,
         verify_command=verify_command,
+        signer=signer,
+        signing_identity=signing_identity,
+        signing_issuer=signing_issuer,
     )
 
 

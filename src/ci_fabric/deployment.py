@@ -1195,11 +1195,14 @@ def deploy(
 
         # Bring-your-own signature verification: a bundle that does not verify
         # is never extracted or started, regardless of any other gate.
-        if config.release.verify_command:
+        verify_command = config.release.verify_command
+        if not verify_command and isinstance(bundle.metadata, dict):
+            verify_command = bundle.metadata.get("verify_command")
+        if verify_command:
             verify_log = context.paths.logs_dir / f"deploy-{environment_name}-verify-01.log"
             verify_result = run_command(
                 context.render(
-                    config.release.verify_command,
+                    verify_command,
                     extra={"bundle_dir": str(bundle.directory), "version": bundle.version},
                 ),
                 cwd=bundle.directory,

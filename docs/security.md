@@ -145,11 +145,14 @@ on success works identically.
 
 ## Honest limitations
 
-- **No default signer and no key management.** Signing is a command
-  contract; ci-fabric does not bundle crypto, create keys, or talk to a
-  keyring. An unsigned configuration is recorded honestly in `release.json`
-  (`"none (no sign_command configured)"`) — it proves integrity, not
-  authorship.
+- **Default signer available (opt-in): cosign keyless.** Set
+  `[release].signer = "cosign-keyless"` with `signing_identity` and
+  `signing_issuer`; ci-fabric invokes `cosign sign-blob --bundle` /
+  `cosign verify-blob`, manages no keys, and records the identity and bundle
+  in `release.json`. Signing needs an ambient OIDC identity (GitHub Actions,
+  Google, `SIGSTORE_ID_TOKEN`, …); without one, cosign fails and the release
+  aborts rather than shipping unsigned. Unsigned configurations are still
+  recorded honestly (`"none (no signer configured)"`).
 - **Provenance is not independently authenticated.** `provenance.json` and
   `sbom.cdx.json` are copied into the bundle and listed in `SHA256SUMS`, so a
   configured `sign_command` covers them exactly like the artifact bytes — a

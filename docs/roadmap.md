@@ -9,10 +9,12 @@ makes the local pipeline more rigorous comes in.
 - **~Done in 0.2.0:~ release signing** ships as a bring-your-own-tool command
   contract (see security.md): a signer that fails, or rewrites checksummed
   content, or produces a signature that does not verify, aborts the release;
-  deploy refuses unverified bundles. **Remaining:** a first-class default
-  signer story (cosign keyless). The provenance document is already inside the
-  signed checksum set; what a default signer would add is key handling and an
-  out-of-the-box authority, not coverage.
+  deploy refuses unverified bundles. ~~**Remaining:** a first-class default
+  signer story (cosign keyless).~~ ~Done in 0.11.0 (decisions.md D20):~ opt-in
+  `signer = "cosign-keyless"` invokes cosign and manages no keys. The
+  provenance document is already inside the signed checksum set; what the
+  default signer adds is key handling and an out-of-the-box authority, not
+  coverage.
 - **A hosted-CI adapter, not a hosted-CI fork.** When GitHub Actions (or any
   other runner) enters the picture, it must invoke the same canonical commands
   (`./ci ci`, `./ci release`) in a clean checkout. The orchestrator, gates,
@@ -79,7 +81,7 @@ makes the local pipeline more rigorous comes in.
 
 This project is **Beta**: the gate model, packaging, release, deploy, and
 rollback paths are implemented and self-tested (249 tests across four tiers,
-full pipeline green on this repository), but there is no default signer story
-(signing is a bring-your-own command contract) and hosted-CI execution is
-deliberately deferred. Treat it as a strong local CI with an explicit,
+full pipeline green on this repository), but signing is a bring-your-own
+command contract with an opt-in cosign-keyless default signer (see security.md),
+and hosted-CI execution is deliberately deferred. Treat it as a strong local CI with an explicit,
 documented gap list — not as a finished enterprise platform.

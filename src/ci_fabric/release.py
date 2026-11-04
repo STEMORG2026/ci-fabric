@@ -6,6 +6,7 @@ import contextlib
 import fnmatch
 import json
 import os
+import shlex
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -290,6 +291,55 @@ def _release_notes(
     return text, source, False
 
 
+def _effective_signer(config: Config) -> tuple[str, str | None, str | None]:
+    """Resolve the configured signer into (kind, sign_command, verify_command).
+
+    Returns ``("none", None, None)`` for an unsigned release, the BYO
+    commands for ``sign_command``, or the cosign-keyless command pair. Raises
+    ``CiError`` for a misconfigured or unavailable signer so a release never
+    silently ships unsigned when a signer was requested.
+    """
+    if config.release.sign_command:
+        return "external", config.release.sign_command, config.release.verify_command
+    if config.release.signer == "cosign-keyless":
+        identity = config.release.signing_identity or os.environ.get("COSIGN_CERTIFICATE_IDENTITY")
+        issuer = config.release.signing_issuer or os.environ.get("COSIGN_CERTIFICATE_OIDC_ISSUER")
+        if not identity or not issuer:
+            raise CiError(
+                "cosign-keyless requires a signing identity and OIDC issuer",
+                remediation=(
+                    "Set [release].signing_identity and [release].signing_issuer in "
+                    "ci.toml (for example the email/GitHub identity cosign will "
+                    "issue the certificate for, and https://token.actions."
+                    "githubusercontent.com or https://oauth2.sigstore.dev/auth), "
+                    "or export COSIGN_CERTIFICATE_IDENTITY / "
+                    "COSIGN_CERTIFICATE_OIDC_ISSUER."
+                ),
+            )
+        if shutil.which("cosign") is None:
+            raise CiError(
+                "cosign is not installed or not on PATH",
+                remediation=(
+                    "Install cosign (https://docs.sigstore.dev/cosign/system_config/"
+                    'installation/) or switch [release].signer to "none".'
+                ),
+            )
+        bundle_name = "SHA256SUMS.sigstore.json"
+        sign_command = f"cosign sign-blob --yes --bundle {bundle_name} SHA256SUMS"
+        verify_command = (
+            f"cosign verify-blob --bundle {bundle_name} "
+            f"--certificate-identity {shlex.quote(identity)} "
+            f"--certificate-oidc-issuer {shlex.quote(issuer)} SHA256SUMS"
+        )
+        return "cosign-keyless", sign_command, verify_command
+    if config.release.signer not in {"none", ""}:
+        raise CiError(
+            f"unknown signer: {config.release.signer!r}",
+            remediation='Use signer = "cosign-keyless" or "none".',
+        )
+    return "none", None, None
+
+
 def create_release(
     context: Context,
     *,
@@ -416,6 +466,7 @@ def create_release(
         write_text_atomic(notes_out, notes_text if notes_text.endswith("\n") else notes_text + "\n")
 
         created_at = isoformat(utc_now())
+        signer_kind, effective_sign_command, effective_verify_command = _effective_signer(config)
         release_metadata: dict[str, Any] = {
             "schema_version": 1,
             "project": config.project.name,
@@ -434,13 +485,28 @@ def create_release(
             "tag": f"{config.release.tag_prefix}{resolved}" if tag else None,
             "signing": (
                 "signed (external command)"
-                if config.release.sign_command
-                else "none (no sign_command configured)"
+                if signer_kind == "external"
+                else "signed (cosign keyless)"
+                if signer_kind == "cosign-keyless"
+                else "none (no signer configured)"
             ),
+            "signer": signer_kind,
             "attestation": (
                 "provenance.json (covered by signed SHA256SUMS)"
-                if config.release.sign_command
+                if effective_sign_command
                 else "provenance.json (listed in SHA256SUMS; no signer configured)"
+            ),
+            "signing_bundle": (
+                "SHA256SUMS.sigstore.json" if signer_kind == "cosign-keyless" else None
+            ),
+            "signing_identity": (
+                config.release.signing_identity if signer_kind == "cosign-keyless" else None
+            ),
+            "signing_issuer": (
+                config.release.signing_issuer if signer_kind == "cosign-keyless" else None
+            ),
+            "verify_command": (
+                effective_verify_command if signer_kind == "cosign-keyless" else None
             ),
         }
         write_json(temp / "release.json", release_metadata)
@@ -461,11 +527,11 @@ def create_release(
         # Bring-your-own signing: run inside the finished bundle, then prove the
         # signer did not touch the checksummed content, then self-test the
         # signature with verify_command before anything is published.
-        if config.release.sign_command:
+        if effective_sign_command:
             echo("  signing release bundle")
             sign_log = context.paths.logs_dir / "release-sign-01.log"
             sign_result = run_command(
-                context.render(config.release.sign_command, extra={"bundle_dir": str(temp)}),
+                context.render(effective_sign_command, extra={"bundle_dir": str(temp)}),
                 cwd=temp,
                 env=dict(context.base_env),
                 timeout=300,
@@ -477,6 +543,12 @@ def create_release(
                     remediation=(
                         "Fix the [release].sign_command; a release without a valid "
                         "signature is never published. Log: " + relpath(sign_log, context.root)
+                        if signer_kind == "external"
+                        else (
+                            "cosign keyless signing failed. Ensure an ambient OIDC "
+                            "identity is available (GitHub Actions, Google, etc.) or "
+                            "export SIGSTORE_ID_TOKEN. Log: " + relpath(sign_log, context.root)
+                        )
                     ),
                 )
             drifted = verify_checksums(checksums_out, temp)
@@ -489,10 +561,10 @@ def create_release(
                         "the exact checksummed content."
                     ),
                 )
-            if config.release.verify_command:
+            if effective_verify_command:
                 verify_log = context.paths.logs_dir / "release-verify-01.log"
                 verify_result = run_command(
-                    context.render(config.release.verify_command, extra={"bundle_dir": str(temp)}),
+                    context.render(effective_verify_command, extra={"bundle_dir": str(temp)}),
                     cwd=temp,
                     env=dict(context.base_env),
                     timeout=300,
