@@ -75,8 +75,8 @@ makes the local pipeline more rigorous comes in.
 ## Status honesty
 
 This project is **Beta**: the gate model, packaging, release, deploy, and
-rollback paths are implemented and self-tested (163 tests across four tiers,
-full pipeline green on this repository), but signing is absent, hosted-CI
-execution is deliberately deferred, and stage parallelism does not exist yet.
-Treat it as a strong local CI with an explicit, documented gap list — not as a
-finished enterprise platform.
+rollback paths are implemented and self-tested (207 tests across four tiers,
+full pipeline green on this repository), but there is no default signer story
+(signing is a bring-your-own command contract) and hosted-CI execution is
+deliberately deferred. Treat it as a strong local CI with an explicit,
+documented gap list — not as a finished enterprise platform.

@@ -9,10 +9,10 @@ state — rather than to maximize a coverage number.
 
 | tier | what it proves | examples |
 | --- | --- | --- |
-| **unit** (115) | every component's contract in isolation | glob semantics, archive determinism, secret-scanner allowlists, config schema rejection of every malformed input |
-| **integration** (38) | stages compose and enforce policy on real fixture repositories | fail-fast skips later stages with reasons; discovery blocks a zero-test run; tampered artifacts fail integrity; release refuses dirty trees; deploy auto-rolls back a genuinely broken release to a genuinely running previous one |
-| **contract** (12) | the public shapes other tools depend on are pinned | result-JSON key sets at every level, exit codes 0/1/2/130 via real subprocesses, `--json` output is pure JSON, policy document, generated reference vs the live parser |
-| **e2e** (5) | the real CLI, as a subprocess, exactly as consumers run it | `init` scaffolds a loadable config; a committed secret fails `security` then passes after removal; release→deploy→health→undeploy; the `./ci` shim resolves the checkout |
+| **unit** (116) | every component's contract in isolation | glob semantics, archive determinism, secret-scanner allowlists, config schema rejection of every malformed input |
+| **integration** (66) | stages compose and enforce policy on real fixture repositories | fail-fast skips later stages with reasons; discovery blocks a zero-test run; tampered artifacts fail integrity; release refuses dirty trees; deploy auto-rolls back a genuinely broken release to a genuinely running previous one |
+| **contract** (18) | the public shapes other tools depend on are pinned | result-JSON key sets at every level, exit codes 0/1/2/130 via real subprocesses, `--json` output is pure JSON, policy document, generated reference vs the live parser |
+| **e2e** (7) | the real CLI, as a subprocess, exactly as consumers run it | `init` scaffolds a loadable config; a committed secret fails `security` then passes after removal; release→deploy→health→undeploy; the `./ci` shim resolves the checkout |
 
 Integration and e2e tests build real git repositories in temp directories and
 run real commands — no mocks of git, pytest, or HTTP. The deploy tests start
@@ -41,9 +41,9 @@ actual local servers and kill them.
 Branch coverage is measured across the full suite with coverage data
 collected inside the tiers (see decision D6/D7 in
 [decisions.md](decisions.md)); the CLI is measured through deliberately
-instrumented subprocesses. The floor in this repository is set in
-`ci.toml` next to its rationale — currently 74% against a measured 75–78%,
-one point of drift headroom, never a target to game.
+instrumented subprocesses. The floor in this repository is set in `ci.toml`
+(`min_percent`) — currently 74% against a measured 80.1% line rate, several
+points of headroom, never a target to game.
 
 ## Running
 

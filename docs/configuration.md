@@ -80,7 +80,9 @@ Stage-specific keys (validated per stage):
   `tests/test_a.py`), `*` never crosses `/`.
 - `coverage`: `report_path` (coverage.py XML/JSON, lcov, or a TOTAL line),
   `min_percent`.
-- `build`: `outputs` (paths that must exist after the command), `cache`
+- `build`: `outputs` (paths that must exist after the command; they are
+  emptied before the build runs, so the bundle can only hold this revision's
+  artifacts — see decisions.md D15), `cache`
   (opt-in content-addressed build cache — see decisions.md D13).
 - `package`: `strategy` (`archive`), `inputs`, `strip_prefix`, `output`,
   `exclude`, `format` (`tar.gz`/`tar`/`zip`).

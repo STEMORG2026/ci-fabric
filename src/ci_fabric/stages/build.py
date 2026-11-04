@@ -12,7 +12,7 @@ from ..config import StageConfig
 from ..context import Context
 from ..gates import GateResult, StageResult, failed, passed, skipped, stage_result, warning
 from ..supplychain import write_manifest
-from ..util import ensure_dir, is_within, relpath, write_json
+from ..util import ensure_dir, is_within, relpath, tracked_files, write_json
 from .base import Echo, disabled_gate, no_command_gate, run_stage_commands
 
 
@@ -62,6 +62,114 @@ def _collect_build_outputs(context: Context, outputs: list[Path]) -> tuple[list[
     return sorted(set(collected)), problems
 
 
+def _refusal_reason(context: Context, path: Path) -> str | None:
+    """Why *path* must never be cleaned, or None when it may be."""
+    root = context.root.resolve()
+    if path == root:
+        return "the repository root"
+    if not is_within(path, root):
+        return "outside the repository"
+    for protected in (context.paths.state_dir, root / ".localci"):
+        if is_within(path, protected):
+            return f"{relpath(protected, root)} (ci-fabric's own state)"
+    return None
+
+
+def _clean_declared_outputs(context: Context, stage: StageConfig, echo: Echo) -> list[GateResult]:
+    """Remove previously declared build outputs before the build runs.
+
+    Declared outputs are what *this* revision's build produces, so anything
+    already sitting there belongs to an earlier build. Most toolchains append
+    (`python -m build --outdir dist` is the canonical example): left alone,
+    every historical distribution stays in the output directory and is then
+    packaged, checksummed and released as part of the new bundle — a bundle
+    whose contents, and therefore whose digest, depend on the machine's build
+    history instead of on the commit. A fresh clone and a long-lived checkout
+    of the same revision must produce the same bytes, so the output directory
+    is emptied first.
+
+    Deletion is deliberately conservative: the repository root, anything
+    outside the repository, and ci-fabric's own state directories (`.ci`,
+    `.localci`) are refused as configuration errors rather than deleted, and a
+    path tracked in Git is reported and left alone — a committed file is a
+    source, never a build product.
+    """
+    started = time.monotonic()
+    declared = list(stage.outputs)
+    tracked = set(tracked_files(context.root)) if context.git.available else set()
+    removed: list[str] = []
+    left_tracked: list[str] = []
+    refused: list[str] = []
+    for path in _expand_outputs(context, declared):
+        relative = relpath(path, context.root)
+        reason = _refusal_reason(context, path)
+        if reason is not None:
+            refused.append(f"{relative} is {reason}")
+            continue
+        if relative in tracked:
+            left_tracked.append(relative)
+            continue
+        try:
+            if path.is_dir() and not path.is_symlink():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+        except OSError as exc:
+            refused.append(f"{relative} could not be removed: {exc.strerror or exc}")
+            continue
+        removed.append(relative)
+
+    duration = time.monotonic() - started
+    if refused:
+        return [
+            failed(
+                "build.clean",
+                "build",
+                "stale build outputs",
+                required=stage.required,
+                summary="; ".join(refused[:5]),
+                remediation=(
+                    "Fix [stages.build].outputs: declared outputs must be build products "
+                    "inside the repository, never the checkout root, the tool's own state "
+                    "directories (.ci, .localci), or an unremovable path."
+                ),
+                duration_seconds=duration,
+            )
+        ]
+
+    gates = [
+        passed(
+            "build.clean",
+            "build",
+            "stale build outputs",
+            required=stage.required,
+            summary=(
+                f"removed {len(removed)} stale output path(s) before the build"
+                if removed
+                else "outputs were already clean"
+            ),
+            details={"removed": removed, "declared": declared},
+            duration_seconds=duration,
+        )
+    ]
+    if left_tracked:
+        gates.append(
+            warning(
+                "build.clean.tracked",
+                "build",
+                "tracked output paths",
+                summary=f"left in place (tracked in Git): {', '.join(left_tracked[:5])}",
+                remediation=(
+                    "Declared build outputs should be generated files. A tracked path is "
+                    "never deleted by the build stage."
+                ),
+                details={"tracked": left_tracked},
+                duration_seconds=duration,
+            )
+        )
+    return gates
+
+
 def run_build_stage(context: Context, echo: Echo) -> StageResult:
     started = time.monotonic()
     stage = context.config.stage("build")
@@ -102,6 +210,16 @@ def run_build_stage(context: Context, echo: Echo) -> StageResult:
         )
 
     rendered_commands = [context.render(command) for command in stage.commands]
+
+    # Declared outputs are emptied first: the bundle must be what this commit
+    # builds, never what this machine built before. (See _clean_declared_outputs.)
+    clean_gates: list[GateResult] = (
+        _clean_declared_outputs(context, stage, echo) if stage.outputs else []
+    )
+    if any(gate.blocking_failure for gate in clean_gates):
+        # A refused cleanup means the tree cannot be trusted to hold only this
+        # build's outputs; building anyway would package whatever is there.
+        return stage_result("build", clean_gates, duration_seconds=time.monotonic() - started)
 
     # Content-addressed build cache (opt-in). A clean tree at the same
     # revision with identical rendered commands restores the previous build's
@@ -152,7 +270,7 @@ def run_build_stage(context: Context, echo: Echo) -> StageResult:
                 return _finish_cached_build(
                     context,
                     stage,
-                    cache_gates,
+                    [*clean_gates, *cache_gates],
                     started,
                     rendered_commands,
                 )
@@ -161,7 +279,7 @@ def run_build_stage(context: Context, echo: Echo) -> StageResult:
     gates, results = run_stage_commands(
         context=context, stage=stage, echo=echo, commands=stage.commands
     )
-    gates = [*cache_gates, *gates]
+    gates = [*clean_gates, *cache_gates, *gates]
     if any(gate.blocking_failure for gate in gates):
         return stage_result("build", gates, duration_seconds=time.monotonic() - started)
 

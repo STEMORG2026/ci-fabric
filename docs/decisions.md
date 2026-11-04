@@ -177,6 +177,32 @@ how "the app is up" comes to mean "the migration ran" on no evidence);
 making them advisory (a stateful system deployed with a failed migration is
 worse than not deployed — that is what rollback exists for).
 
+## D15 — Declared build outputs are emptied before the build
+
+**Decision.** With `[stages.build].outputs` configured, the build stage removes
+those paths — before the cache lookup and before the build command runs — so a
+build can only produce the artifacts of the revision being built. The
+`build.clean` gate records what was removed; a cache hit restores into the
+emptied directory.
+
+**Why.** `outputs` is a promise about *this* revision's build products, and
+almost every toolchain appends to its output directory (`python -m build
+--outdir dist` never removes the previous release's files). Left in place, that
+residue is packaged, checksummed and released inside the new bundle, which
+makes the bundle's contents — and therefore its digest — a function of the
+machine's build history: a fresh clone and a long-lived checkout of the same
+commit produce different bytes. Deterministic packaging cannot survive that,
+and anything signed later would attest a bundle nobody else can reproduce.
+
+**Rejected.** An opt-in `clean = true` key (stale content silently corrupts the
+artifact rather than expressing a preference — a flag consumers must discover
+in order to be correct is a flag most will never find); reporting a warning
+instead of deleting (a warning does not change what gets packaged); deleting
+tracked paths (a committed file is a source, not a build product — those are
+reported by `build.clean.tracked` and left alone); permitting the checkout root
+or `.ci`/`.localci` as an output (each such configuration would delete the
+repository or the run state — refused, and the build does not run).
+
 ## Pending decisions (deliberately open)
 
 - A first-class default signer story (cosign keyless) and countersigning the

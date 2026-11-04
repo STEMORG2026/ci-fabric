@@ -1,3 +1,26 @@
+# ci-fabric 0.7.1
+
+Clean build outputs: a bundle is a function of the commit, not of the machine.
+
+## Fixed
+
+- **Declared build outputs are emptied before the build runs.** `outputs` is a
+  promise about what *this* revision produces, so whatever already sits in
+  those paths belongs to an earlier build. Most toolchains append —
+  `python -m build --outdir dist` never removes the previous release's files —
+  and the residue was then packaged, checksummed and released as part of the
+  new bundle: the 0.7.0 bundle in this repository's own `.localci/releases/`
+  carried distributions for 0.1.0 through 0.6.1 alongside 0.7.0, so its digest
+  depended on the machine's build history and no fresh clone of the same commit
+  could reproduce it. The `build.clean` gate records exactly what was removed,
+  and a cache hit is restored into an emptied output directory, so a hit and a
+  fresh build yield the same tree.
+  Deletion stays conservative: the checkout root, anything outside the
+  repository, and ci-fabric's own state directories (`.ci`, `.localci`) are
+  refused as configuration errors — `build.clean` fails and the build does not
+  run — and a path tracked in Git is reported by `build.clean.tracked` and left
+  in place, because a committed file is a source, never a build product.
+
 # ci-fabric 0.7.0
 
 Stateful-system invariants: system state is a deploy gate.
