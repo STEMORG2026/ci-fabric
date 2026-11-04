@@ -20,6 +20,16 @@ Clean build outputs: a bundle is a function of the commit, not of the machine.
   refused as configuration errors — `build.clean` fails and the build does not
   run — and a path tracked in Git is reported by `build.clean.tracked` and left
   in place, because a committed file is a source, never a build product.
+- **Duplicated changelog sections are a build failure.** Every release from
+  0.4.0 shipped a `RELEASE_NOTES.md` in which the previous version's heading
+  appeared twice — the residue of prepending a section by re-emitting the
+  anchor line — and because the changelog is checksummed into the bundle, the
+  defect travelled inside the verified artifact. The new
+  `repository.release-notes` gate parses the release headings (`# name 1.0.0`
+  and Keep-a-Changelog `## [1.0.0] - date`, ignoring deeper and fenced
+  headings) and fails on a repeat with the line to delete; the five duplicated
+  headings are removed. Detected by reading the artifacts, not the tests: the
+  analysis is recorded in decisions.md D16.
 
 # ci-fabric 0.7.0
 
@@ -39,7 +49,6 @@ Stateful-system invariants: system state is a deploy gate.
   previous good release.
 
 # ci-fabric 0.6.1
-# ci-fabric 0.6.1
 
 Consumer-feedback fix from the first real adoption.
 
@@ -54,7 +63,6 @@ Consumer-feedback fix from the first real adoption.
   tracks a legitimate `.env.example` and was correctly-but-unhelpfully
   blocked by the default `.env.*` glob.
 
-# ci-fabric 0.6.0
 # ci-fabric 0.6.0
 
 Content-addressed build cache: same clean tree, same commands, no rebuild.
@@ -74,7 +82,6 @@ Content-addressed build cache: same clean tree, same commands, no rebuild.
   different venv naturally misses.
 
 # ci-fabric 0.5.0
-# ci-fabric 0.5.0
 
 Baseline-gated secret scanning: legacy debt is visible, new debt blocks.
 
@@ -92,7 +99,6 @@ Baseline-gated secret scanning: legacy debt is visible, new debt blocks.
   Universal_Software_Auditor's `--baseline` gate; implemented natively
   against ci-fabric's own finding fingerprints.
 
-# ci-fabric 0.4.0
 # ci-fabric 0.4.0
 
 Gate outcomes tell the truth; test tiers run concurrently.
@@ -112,7 +118,6 @@ Gate outcomes tell the truth; test tiers run concurrently.
   construction, so concurrent tiers combine cleanly. Self pipeline wall
   clock: 3m28s -> 1m48s.
 
-# ci-fabric 0.3.0
 # ci-fabric 0.3.0
 
 Documentation becomes top-tier and self-enforcing; the command surface gains

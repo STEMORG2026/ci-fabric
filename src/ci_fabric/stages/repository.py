@@ -10,6 +10,7 @@ from ..gates import GateResult, StageResult, failed, passed, skipped, stage_resu
 from ..repository import (
     check_lockfiles,
     check_markdown_links,
+    check_release_notes,
     check_required_paths,
     check_tracked_files,
     check_versions,
@@ -41,6 +42,67 @@ def _license_gate(context: Context) -> GateResult:
         "license file",
         summary="no LICENSE/COPYING file found",
         remediation="Add a license file so downstream users know the terms.",
+    )
+
+
+def _release_notes_gate(context: Context, required: bool) -> GateResult:
+    """Refuse a changelog that lists the same release twice.
+
+    The changelog is copied into every release bundle and checksummed, so a
+    duplicated section is a defect in the shipped artifact. It is also the
+    signature of a specific mistake: a hand-written prepend that re-emits the
+    previous release's heading as the anchor for the new section. That mistake
+    shipped in five of this repository's own releases before the gate existed
+    (see decisions.md D16), which is why structure is a gate rather than a
+    review note.
+    """
+    relative = context.config.release.changelog
+    if not relative:
+        return skipped(
+            "repository.release-notes",
+            "repository",
+            "release notes",
+            summary="no changelog configured",
+        )
+    if not (context.root / relative).is_file():
+        # Existence is the release stage's business (`require_notes`); this
+        # gate owns structure only, so a project that has not written notes
+        # yet is not warned on every run.
+        return skipped(
+            "repository.release-notes",
+            "repository",
+            "release notes",
+            summary=f"{relative} is not present",
+        )
+
+    headings, duplicates = check_release_notes(context.root, relative)
+    if duplicates:
+        return failed(
+            "repository.release-notes",
+            "repository",
+            "release notes",
+            required=required,
+            summary="; ".join(f"line {item.line} repeats {item.text}" for item in duplicates[:5]),
+            details={
+                "changelog": relative,
+                "duplicates": [{"line": item.line, "heading": item.text} for item in duplicates],
+            },
+            remediation=(
+                f"A changelog lists each release once: delete the repeated heading(s) in "
+                f"{relative}. This is usually the previous release's heading re-emitted "
+                "while prepending the new section."
+            ),
+        )
+    return passed(
+        "repository.release-notes",
+        "repository",
+        "release notes",
+        required=False,
+        summary=f"{len(headings)} release section(s); no duplicate headings",
+        details={
+            "changelog": relative,
+            "newest": headings[0].text if headings else None,
+        },
     )
 
 
@@ -292,6 +354,8 @@ def run_repository_stage(context: Context, echo: Echo) -> StageResult:
                 ),
             )
         )
+
+    gates.append(_release_notes_gate(context, required))
 
     lock_report = check_lockfiles(context.root, config.repository.required_lockfiles, tracked)
     if lock_report["missing"] or lock_report["untracked"]:

@@ -30,11 +30,21 @@ class VersionProblem:
     reason: str
 
 
+@dataclass(slots=True, frozen=True)
+class ReleaseHeading:
+    line: int
+    text: str
+
+
 _FENCE = re.compile(r"^\s*(```|~~~)")
 _INLINE_LINK = re.compile(r"!?\[[^\]]*]\(([^)\s]+)(?:\s+[\"'][^\"']*[\"'])?\)")
 _REFERENCE_LINK = re.compile(r"^\s*\[[^\]]+]:\s+(\S+)")
 _SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 _CONFLICT_MARKERS = ("<<<<<<< ", ">>>>>>> ", "||||||| ")
+# A release heading is a level-1 or level-2 heading that names a version, which
+# covers `# name 1.0.0` and Keep a Changelog's `## [1.0.0] - 2026-01-01`.
+_HEADING = re.compile(r"^(#{1,2})\s+(?P<title>\S.*?)\s*$")
+_VERSION_TOKEN = re.compile(r"\bv?\d+\.\d+(?:\.\d+)?\b")
 
 
 def _matches(path: str, patterns: list[str]) -> bool:
@@ -254,3 +264,49 @@ def check_lockfiles(root: Path, required: list[str], tracked: list[str]) -> dict
         elif relative not in tracked_set:
             untracked.append(relative)
     return {"missing": missing, "untracked": untracked}
+
+
+def release_headings(text: str) -> list[ReleaseHeading]:
+    """Return the release sections of a changelog, in document order.
+
+    A release section is a level-1 or level-2 heading naming a version —
+    `# name 1.0.0`, `## [1.0.0] - 2026-01-01`. Deeper headings (`### Added`),
+    version-less headings (`## Unreleased`) and fenced examples are not
+    sections, and line numbers survive fence stripping so a finding points at
+    the line to delete.
+    """
+    headings: list[ReleaseHeading] = []
+    for number, line in enumerate(_strip_fences(text).splitlines(), start=1):
+        match = _HEADING.match(line)
+        if match is None or not _VERSION_TOKEN.search(match.group("title")):
+            continue
+        headings.append(ReleaseHeading(line=number, text=line.strip()))
+    return headings
+
+
+def check_release_notes(
+    root: Path, relative: str | None
+) -> tuple[list[ReleaseHeading], list[ReleaseHeading]]:
+    """Return (headings, duplicates) for the configured changelog.
+
+    A changelog lists each release exactly once, so an identical heading twice
+    is a structural defect — and the specific defect a hand-written prepend
+    produces when it re-emits the previous release's heading as its anchor.
+    Since the changelog is checksummed into every release bundle, the
+    duplication ships.
+    """
+    if not relative:
+        return [], []
+    path = root / relative
+    if not path.is_file():
+        return [], []
+    headings = release_headings(read_text(path, limit=2 * 1024 * 1024))
+    seen: set[str] = set()
+    duplicates: list[ReleaseHeading] = []
+    for heading in headings:
+        key = " ".join(heading.text.split()).casefold()
+        if key in seen:
+            duplicates.append(heading)
+        else:
+            seen.add(key)
+    return headings, duplicates

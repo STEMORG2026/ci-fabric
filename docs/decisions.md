@@ -203,7 +203,42 @@ reported by `build.clean.tracked` and left alone); permitting the checkout root
 or `.ci`/`.localci` as an output (each such configuration would delete the
 repository or the run state — refused, and the build does not run).
 
+## D16 — The changelog's structure is a gate, not review discipline
+
+**Decision.** The `repository.release-notes` gate parses the configured
+changelog's release headings (`# name 1.0.0`, Keep a Changelog's
+`## [1.0.0] - 2026-01-01`; deeper headings, version-less headings and fenced
+examples are not sections) and fails when the same heading appears twice. It
+runs on every pipeline, not only at release time.
+
+**Why.** The changelog is copied into every release bundle and checksummed into
+`SHA256SUMS`, so a structural defect ships inside the verified artifact. And it
+did: five of this repository's own releases (0.4.0 through 0.7.0) contained a
+duplicated version heading — the previous release's heading re-emitted as the
+anchor while prepending the new section — discovered only by reading the
+bundles months later. No code path in ci-fabric writes the repository's
+changelog (the release stage reads it and writes only into the bundle), and the
+history is linear with no merges, so the defect entered through a hand edit.
+That is exactly the class of step a gate can own: the file has a machine-
+checkable invariant (one section per release), and the failure was silent.
+
+**Rejected.** Relying on review (five releases proved that does not hold);
+checking only at release time (the file is broken from the moment it is
+written, and the gate should fail on the commit that breaks it); flagging only
+*adjacent* duplicate headings (the same defect with a section between them is
+just as wrong, and the rule "a release appears once" is simpler to state and to
+fix); requiring the newest heading to equal `project.version` (a project may
+bump the version before writing notes, and a false failure on every development
+run would teach people to ignore the gate).
+
 ## Pending decisions (deliberately open)
 
 - A first-class default signer story (cosign keyless) and countersigning the
   provenance document — see `roadmap.md`.
+- A mechanical `./ci notes --add <version>` command that prepends the new
+  section to the changelog. D16's gate now *catches* the error class; a command
+  that composes the section would *prevent* it. Not built yet: it is new
+  command surface (parser, reference regeneration, tests) for a step that
+  currently costs one hand edit per release, and the failure it prevents is now
+  a blocking gate failure rather than a silent shipped defect. Revisit if a
+  second project adopts the same release-notes convention.

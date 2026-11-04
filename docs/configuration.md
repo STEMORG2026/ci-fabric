@@ -101,6 +101,13 @@ reproducible tree), `require_notes`, `changelog`, `tag_prefix`, `output_dir`,
 the bundle directory; see [security.md](security.md)). Configuring
 `verify_command` without `sign_command` is rejected at load time.
 
+`changelog` is not only copied into every bundle — it is structure-checked:
+the `repository.release-notes` gate fails when the same release heading
+appears twice, because the changelog is checksummed into the release artifact
+and a repeated section ships with it (see decisions.md D16). A configured but
+absent changelog is skipped by this gate — existence is `require_notes`'
+business, enforced at release time.
+
 ## `[deploy.<env>]`
 
 `strategy` (`process` | `static`), `start_command` (required for `process`),

@@ -40,6 +40,7 @@ verify the exact bytes that would be released or deployed, not a byproduct.
 | `repository.conflict-markers` | repository | BLOCKING | unresolved merge markers cannot pass CI |
 | `repository.large-files` | repository | BLOCKING | binary blobs over `max_tracked_file_mib` break reviewability |
 | `repository.versions` | repository | BLOCKING | version drift between manifests ships the wrong version |
+| `repository.release-notes` | repository | BLOCKING | a changelog that lists the same release twice ships the duplication inside the checksummed bundle; the duplicate is the signature of a prepend that re-emitted its anchor (D16). Absent changelog: SKIP — existence belongs to `require_notes` |
 | `repository.lockfiles` | repository | BLOCKING | declared lockfiles must exist **and** be tracked — dependency resolution must be reproducible |
 | `repository.links` | repository | WARN-able | broken relative links rot documentation |
 | `repository.license` | repository | WARNING | a repository without license terms is unusable downstream |
@@ -51,6 +52,8 @@ verify the exact bytes that would be released or deployed, not a byproduct.
 | `security.config` | security | per stage | configuration hygiene, e.g. literal credentials in `[deploy.*].env` |
 | `audit.dependencies.*` | audit | per stage | dependency vulnerability audit |
 | `build.outputs` | build | BLOCKING | a build that produces nothing cannot be validated, released, or deployed |
+| `build.clean` | build | BLOCKING | declared outputs are emptied before the build and before a cache restore, so a bundle is this revision's artifacts rather than this machine's build history (D15) |
+| `build.cache` | build | opt-in | a green build's declared outputs are reused at the same revision with identical rendered commands; hits are digest-verified, misses rebuild (D13) |
 | `package.*` (manifest/checksums/SBOM) | package | per stage | deterministic archive + supply-chain metadata |
 | `artifact.manifest/integrity/archives/contents/secrets/smoke` | artifact | per stage | checksums match, extraction is traversal-safe, required contents exist, no secrets inside the artifact |
 
