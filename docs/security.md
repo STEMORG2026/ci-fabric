@@ -150,9 +150,14 @@ on success works identically.
   keyring. An unsigned configuration is recorded honestly in `release.json`
   (`"none (no sign_command configured)"`) — it proves integrity, not
   authorship.
-- **Provenance is unsigned.** `provenance.json` is a SLSA-shaped in-toto
-  statement, but nothing countersigns it; binding it into the signed
-  `SHA256SUMS` set is the natural next step.
+- **Provenance is not independently authenticated.** `provenance.json` and
+  `sbom.cdx.json` are copied into the bundle and listed in `SHA256SUMS`, so a
+  configured `sign_command` covers them exactly like the artifact bytes — a
+  tampered provenance document fails the release re-verification and the
+  deploy-time check. What is missing without a signer is *authorship*: nothing
+  vouches for who produced the statement, and there is no independent rebuild
+  or remote transparency-log entry. `release.json` records which of the two
+  states applies rather than claiming more than the bundle proves.
 - **The trust boundary is the repository.** `ci.toml` is code. Review it like
   code; `init` output is deliberately conservative and must be reviewed.
 - **The secret scanner is pattern-based.** It finds credential-shaped strings;

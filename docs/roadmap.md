@@ -10,8 +10,9 @@ makes the local pipeline more rigorous comes in.
   contract (see security.md): a signer that fails, or rewrites checksummed
   content, or produces a signature that does not verify, aborts the release;
   deploy refuses unverified bundles. **Remaining:** a first-class default
-  signer story (cosign keyless) and countersigning the provenance document
-  inside the signed checksum set.
+  signer story (cosign keyless). The provenance document is already inside the
+  signed checksum set; what a default signer would add is key handling and an
+  out-of-the-box authority, not coverage.
 - **A hosted-CI adapter, not a hosted-CI fork.** When GitHub Actions (or any
   other runner) enters the picture, it must invoke the same canonical commands
   (`./ci ci`, `./ci release`) in a clean checkout. The orchestrator, gates,

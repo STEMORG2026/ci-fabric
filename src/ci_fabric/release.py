@@ -437,7 +437,11 @@ def create_release(
                 if config.release.sign_command
                 else "none (no sign_command configured)"
             ),
-            "attestation": "provenance.json (unsigned)",
+            "attestation": (
+                "provenance.json (covered by signed SHA256SUMS)"
+                if config.release.sign_command
+                else "provenance.json (listed in SHA256SUMS; no signer configured)"
+            ),
         }
         write_json(temp / "release.json", release_metadata)
 

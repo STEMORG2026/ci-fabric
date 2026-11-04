@@ -1,3 +1,24 @@
+# ci-fabric 0.8.1
+
+Attestation honesty: say what the bundle proves, and nothing more.
+
+## Fixed
+
+- **`release.json` no longer labels a checksummed provenance document
+  "unsigned".** `provenance.json` and `sbom.cdx.json` are copied into the
+  bundle and listed in `SHA256SUMS` — always were — so a configured
+  `sign_command` covers them exactly like the artifact bytes, and a tampered
+  provenance document fails both the release re-verification and the
+  deploy-time check. The label now distinguishes the two real states:
+  `provenance.json (covered by signed SHA256SUMS)` when a signer runs, and
+  `provenance.json (listed in SHA256SUMS; no signer configured)` otherwise.
+- **`security.md` stops claiming an open gap that was already closed.** The
+  honest-limitation entry said binding provenance into the signed checksum set
+  "is the natural next step"; the binding had shipped. The entry now states the
+  actual remaining gap — authorship and independent rebuild, not integrity —
+  and is pinned by tests that read `SHA256SUMS` out of a produced bundle, both
+  signed and unsigned, instead of trusting the prose.
+
 # ci-fabric 0.8.0
 
 Coverage measurement becomes declarative: tiers say they measure, the runner does it.

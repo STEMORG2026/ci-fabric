@@ -130,6 +130,14 @@ def test_release_bundle_is_created_verified_and_protected(tmp_path: Path) -> Non
     assert release_json["version"] == "1.0.0"
     assert release_json["revision"] and not release_json["dirty"]
     assert release_json["signing"] == "none (no sign_command configured)"
+    # The attestation label states exactly what the bundle proves: provenance
+    # is checksummed, but with no signer nothing vouches for its authorship.
+    assert release_json["attestation"] == (
+        "provenance.json (listed in SHA256SUMS; no signer configured)"
+    )
+    sums = (bundle_dir / "SHA256SUMS").read_text(encoding="utf-8")
+    assert "provenance.json" in sums
+    assert "sbom.cdx.json" in sums
     assert list_releases(root, context.config) == ["1.0.0"]
     bundle = resolve_release(root, context.config, "1.0.0")
     assert bundle.version == "1.0.0"

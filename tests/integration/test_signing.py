@@ -98,6 +98,11 @@ def test_release_is_signed_and_records_the_status(tmp_path: Path) -> None:
     # the checksummed content and cannot cover itself.
     sums = (bundle / "SHA256SUMS").read_text(encoding="utf-8")
     assert "SHA256SUMS.sig" not in sums
+    # Provenance and the SBOM are inside the checksummed set, so the signature
+    # covers them exactly like the artifact bytes.
+    assert "provenance.json" in sums
+    assert "sbom.cdx.json" in sums
+    assert release_json["attestation"] == ("provenance.json (covered by signed SHA256SUMS)")
 
 
 def test_deploy_verifies_signature_before_extraction(tmp_path: Path) -> None:
