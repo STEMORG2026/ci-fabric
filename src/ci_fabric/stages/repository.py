@@ -16,7 +16,7 @@ from ..repository import (
     check_versions,
 )
 from ..util import git_is_ignored, run_git, tracked_files
-from .base import Echo, run_stage_commands
+from .base import Echo, disabled_gate, disabled_skip_reason, run_stage_commands
 
 
 def _repository_stage(context: Context) -> StageConfig:
@@ -112,9 +112,9 @@ def run_repository_stage(context: Context, echo: Echo) -> StageResult:
     if not stage.enabled:
         return stage_result(
             "repository",
-            [skipped("repository.disabled", "repository", "repository stage", summary="disabled")],
+            [disabled_gate(stage=stage)],
             duration_seconds=time.monotonic() - started,
-            skipped_reason="disabled",
+            skipped_reason=disabled_skip_reason(stage),
         )
     required = stage.required
     config = context.config

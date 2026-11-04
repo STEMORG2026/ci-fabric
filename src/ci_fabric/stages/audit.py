@@ -7,7 +7,7 @@ import time
 from ..config import StageConfig
 from ..context import Context
 from ..gates import GateResult, StageResult, failed, skipped, stage_result
-from .base import Echo, disabled_gate, run_stage_commands
+from .base import Echo, disabled_gate, disabled_skip_reason, run_stage_commands
 
 
 def run_audit_stage(context: Context, echo: Echo) -> StageResult:
@@ -28,7 +28,7 @@ def run_audit_stage(context: Context, echo: Echo) -> StageResult:
             "audit",
             [disabled_gate(stage=configured)],
             duration_seconds=time.monotonic() - started,
-            skipped_reason="disabled",
+            skipped_reason=disabled_skip_reason(stage),
         )
     gates: list[GateResult] = []
     if not stage.commands:

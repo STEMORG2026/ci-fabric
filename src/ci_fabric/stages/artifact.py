@@ -22,7 +22,7 @@ from ..util import (
     relpath,
     sha256_file,
 )
-from .base import Echo, disabled_gate, run_stage_commands
+from .base import Echo, disabled_gate, disabled_skip_reason, run_stage_commands
 
 
 def _manifest_for_run(context: Context) -> tuple[dict[str, object], Path] | None:
@@ -98,7 +98,7 @@ def run_artifact_stage(context: Context, echo: Echo) -> StageResult:
             "artifact",
             [disabled_gate(stage=stage)],
             duration_seconds=time.monotonic() - started,
-            skipped_reason="disabled",
+            skipped_reason=disabled_skip_reason(stage),
         )
     try:
         found = _manifest_for_run(context)

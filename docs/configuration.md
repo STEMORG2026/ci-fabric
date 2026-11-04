@@ -70,7 +70,10 @@ Every source must match `[project]`'s resolved version, or the gate fails.
 Names are fixed: `format lint typecheck unit integration contract e2e
 coverage security audit build package artifact repository`. Common keys:
 `command` or `commands` (mutually exclusive), `fix_command(s)`, `required`,
-`enabled`, `timeout` (seconds), `cwd`, `env`.
+`enabled`, `disabled_reason` (required when `enabled = false`, rejected when
+the stage is enabled: a suspension must state who suspended the stage and
+why, and it is echoed in every run and listed in the run summary), `timeout`
+(seconds), `cwd`, `env`.
 
 Stage-specific keys (validated per stage):
 

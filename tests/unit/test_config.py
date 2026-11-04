@@ -125,6 +125,29 @@ def test_coverage_threshold_accepts_tier_measured_coverage(tmp_path: Path) -> No
     assert coverage.min_percent == 80
 
 
+def test_disabled_stage_must_state_its_reason(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="does not say why"):
+        load(tmp_path, BASE + "\n[stages.lint]\nenabled = false\n")
+
+
+def test_disabled_stage_records_the_reason(tmp_path: Path) -> None:
+    config = load(
+        tmp_path,
+        BASE
+        + "\n[stages.lint]\nenabled = false\n"
+        + 'disabled_reason = "owner: sajan - linter not ported yet"\n',
+    )
+    lint = config.stage("lint")
+    assert lint is not None
+    assert lint.enabled is False
+    assert lint.disabled_reason == "owner: sajan - linter not ported yet"
+
+
+def test_disabled_reason_without_a_disabled_stage_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="no effect while the stage is enabled"):
+        load(tmp_path, BASE + '\n[stages.lint]\ndisabled_reason = "why"\n')
+
+
 def test_coverage_threshold_without_any_source_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(ConfigError, match="no coverage source"):
         load(tmp_path, BASE + "\n[stages.coverage]\nmin_percent = 80\n")

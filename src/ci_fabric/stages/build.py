@@ -13,7 +13,7 @@ from ..context import Context
 from ..gates import GateResult, StageResult, failed, passed, skipped, stage_result, warning
 from ..supplychain import write_manifest
 from ..util import ensure_dir, is_within, relpath, tracked_files, write_json
-from .base import Echo, disabled_gate, no_command_gate, run_stage_commands
+from .base import Echo, disabled_gate, disabled_skip_reason, no_command_gate, run_stage_commands
 
 
 def _expand_outputs(context: Context, patterns: list[str]) -> list[Path]:
@@ -192,7 +192,7 @@ def run_build_stage(context: Context, echo: Echo) -> StageResult:
             "build",
             [disabled_gate(stage=stage)],
             duration_seconds=time.monotonic() - started,
-            skipped_reason="disabled",
+            skipped_reason=disabled_skip_reason(stage),
         )
     if not stage.commands:
         return stage_result(

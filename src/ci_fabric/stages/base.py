@@ -144,9 +144,17 @@ def no_command_gate(
 
 
 def disabled_gate(*, stage: StageConfig) -> GateResult:
+    """A suspended stage: SKIP, with the recorded reason carried in the gate."""
+    reason = stage.disabled_reason or "no reason recorded"
     return skipped(
         f"{stage.name}.disabled",
         stage.name,
         f"{stage.name} disabled",
-        summary=f"[stages.{stage.name}] enabled=false",
+        summary=f"[stages.{stage.name}] enabled=false — {reason}",
+        details={"enabled": False, "disabled_reason": stage.disabled_reason},
     )
+
+
+def disabled_skip_reason(stage: StageConfig) -> str:
+    """The pipeline line's reason, so the suspension is read, not inferred."""
+    return f"disabled: {stage.disabled_reason or 'no reason recorded'}"

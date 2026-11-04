@@ -401,6 +401,7 @@ def describe_pipeline(config: Config) -> list[dict[str, object]]:
                 "stage": name,
                 "configured": configured,
                 "enabled": enabled,
+                "disabled_reason": stage.disabled_reason if stage else None,
                 "required": required_effective,
                 "classification": "BLOCKING" if required_effective else "WARNING",
             }

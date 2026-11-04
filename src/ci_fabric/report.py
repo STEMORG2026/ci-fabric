@@ -158,6 +158,23 @@ def _markdown_summary(document: dict[str, Any]) -> str:
         f"{human_duration(stage['duration_seconds'])} | {len(stage['gates'])} |"
         for stage in document["stages"]
     )
+    suspended = [
+        (stage["name"], gate.get("details", {}).get("disabled_reason"))
+        for stage in document["stages"]
+        for gate in stage["gates"]
+        if gate["id"].endswith(".disabled")
+    ]
+    if suspended:
+        lines.extend(
+            [
+                "",
+                "## Suspended stages",
+                "",
+                "These stages are disabled in `ci.toml`; each states its reason:",
+                "",
+            ]
+        )
+        lines.extend(f"- `{name}` — {reason or 'no reason recorded'}" for name, reason in suspended)
     if document["blocking_failures"]:
         lines.extend(["", "## Blocking failures", ""])
         for failure in document["blocking_failures"]:

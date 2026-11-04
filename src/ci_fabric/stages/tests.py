@@ -21,7 +21,7 @@ from ..gates import (
 )
 from ..runner import run_command
 from ..util import iter_files, matches_any, parse_xml_file, relpath
-from .base import COVERAGE_DATA_NAME, Echo, disabled_gate
+from .base import COVERAGE_DATA_NAME, Echo, disabled_gate, disabled_skip_reason
 
 _MODULE_INVOCATION = re.compile(
     r"^(?P<interpreter>\S+)\s+-m\s+(?P<module>[A-Za-z_][\w.]*)(?P<tail>\s.*)?$"
@@ -180,7 +180,7 @@ def run_test_stage(
             name,
             [disabled_gate(stage=stage)],
             duration_seconds=time.monotonic() - started,
-            skipped_reason="disabled",
+            skipped_reason=disabled_skip_reason(stage),
         )
     if not stage.commands:
         if stage.required:

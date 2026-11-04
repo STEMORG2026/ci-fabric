@@ -12,7 +12,7 @@ from ..errors import CiError
 from ..gates import GateResult, StageResult, errored, failed, passed, skipped, stage_result
 from ..runner import run_command
 from ..util import parse_xml_file, read_text, relpath
-from .base import COVERAGE_DATA_NAME, Echo, coverage_data_files, disabled_gate
+from .base import COVERAGE_DATA_NAME, Echo, coverage_data_files, disabled_gate, disabled_skip_reason
 
 _TOTAL_PATTERN = re.compile(r"(?i)\bTOTAL\b.*?(\d+(?:\.\d+)?)%")
 _ALL_FILES_PATTERN = re.compile(r"(?i)\bAll files\b.*\|\s*(\d+(?:\.\d+)?)\s*%?")
@@ -101,7 +101,7 @@ def run_coverage_stage(context: Context, echo: Echo) -> StageResult:
             "coverage",
             [disabled_gate(stage=stage)],
             duration_seconds=time.monotonic() - started,
-            skipped_reason="disabled",
+            skipped_reason=disabled_skip_reason(stage),
         )
     gates: list[GateResult] = []
     # Tiers that declared measure_coverage left their data files in this run's

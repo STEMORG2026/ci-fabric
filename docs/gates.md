@@ -47,6 +47,7 @@ verify the exact bytes that would be released or deployed, not a byproduct.
 | `repository.generated` | repository | BLOCKING | every declared generator is re-run and the tree must be unchanged — generated output that drifts from its source is a lie (D6) |
 | `repository.state-ignored` | repository | WARNING | `.ci/` must be ignored, or run state and logs pollute the tracked tree |
 | `<stage>.01…` | command stages | per stage | the command itself; exit code, output tail, and log recorded |
+| `<stage>.disabled` | any stage | SKIP | the stage is suspended with `enabled = false`; the gate carries the required `disabled_reason` in its summary and details, and the run summary lists every suspended stage — a suspension is on the record, never a silent bypass (D18) |
 | `<test>.discovery` | test stages | BLOCKING | a configured test command that matches zero test files is a false pass waiting to happen |
 | `<test>.junit` | test stages | BLOCKING | parses the JUnit report; `min_tests` enforces a real count |
 | `coverage.threshold` | coverage | BLOCKING | coverage is only a gate when you set `min_percent`; `report_path` may be coverage.py XML/JSON, lcov, or a TOTAL-line command; when test tiers declare `measure_coverage`, the stage combines their run-scoped parallel data files instead of re-running the suite |

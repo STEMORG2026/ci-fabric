@@ -11,7 +11,7 @@ from ..errors import CiError
 from ..gates import GateResult, StageResult, failed, passed, skipped, stage_result
 from ..security import deploy_config_findings, scan_repository
 from ..util import git_is_ignored, relpath, write_json
-from .base import Echo, disabled_gate, run_stage_commands
+from .base import Echo, disabled_gate, disabled_skip_reason, run_stage_commands
 
 
 def _security_stage(context: Context) -> StageConfig:
@@ -75,7 +75,7 @@ def run_security_stage(
             "security",
             [disabled_gate(stage=stage)],
             duration_seconds=time.monotonic() - started,
-            skipped_reason="disabled",
+            skipped_reason=disabled_skip_reason(stage),
         )
 
     if stage.secret_scan:

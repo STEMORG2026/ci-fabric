@@ -260,10 +260,45 @@ including them would inflate the number); removing the standalone fallback
 command (a repository with no test tiers, or a developer running
 `./ci coverage` alone, still needs a self-contained path).
 
+## D18 — A suspension must be on the record, or it is refused
+
+**Decision.** `enabled = false` on a stage requires `disabled_reason`, and
+`disabled_reason` is rejected while the stage is enabled. The reason is echoed
+in the pipeline line (`skip lint: disabled: …`), carried in the
+`<stage>.disabled` gate's summary and `details`, recorded in the result
+document, and listed under "Suspended stages" in the run summary. A disabled
+stage is still a SKIP: it never blocks, and deleting the two keys restores the
+stage.
+
+**Why.** Before this, disabling a stage produced one SKIP gate reading
+`[stages.lint] enabled=false` — a fact, not a decision. Nothing said who
+suspended it, when, or why, so the only way to learn was archaeology in Git
+history, and nothing at all appeared in the summary or in `./ci status`. That
+is the same class of defect as `--no-verify`: a gate that stops enforcing with
+no readable trace. This project already states the rule for removal ("nothing
+is removed silently"); disabling a stage is the removal of a check, and it had
+no equivalent rule. The pattern was borrowed from Universal_Software_Auditor's
+own protocol suspension (`.macp/SUSPENDED`): a marker file stating owner, date
+and reason, refused rather than honoured when any field is missing, honoured
+with the reason printed when complete — an anonymous bypass is exactly what
+`--no-verify` already is.
+
+**Rejected.** A free-form comment above `enabled = false` (invisible to the
+result document and to every consumer that reads JSON); a WARN instead of a
+SKIP (a suspension is a decision, not a degraded state — warning on it every
+run teaches people to ignore warnings); an optional reason (an optional record
+is an absent record: the first adopter who omits it recreates the hole);
+`[suspend]` table or a marker *file* (a second place for the same truth —
+ci.toml already holds the switch, and two sources drift); bumping the
+configuration schema to 2 (no key changed meaning and no valid configuration
+became ambiguous — only silent bypasses are refused, and refusing them at load
+with the one-line fix is the honest migration).
+
 ## Pending decisions (deliberately open)
 
-- A first-class default signer story (cosign keyless) and countersigning the
-  provenance document — see `roadmap.md`.
+- A first-class default signer story (cosign keyless) — coverage of the
+  provenance document inside the signed checksum set already exists, so what is
+  open is key handling and an out-of-the-box authority — see `roadmap.md`.
 - A mechanical `./ci notes --add <version>` command that prepends the new
   section to the changelog. D16's gate now *catches* the error class; a command
   that composes the section would *prevent* it. Not built yet: it is new

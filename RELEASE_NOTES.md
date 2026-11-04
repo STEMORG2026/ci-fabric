@@ -1,3 +1,28 @@
+# ci-fabric 0.9.0
+
+A suspended stage must say who suspended it and why.
+
+## Added
+
+- **`[stages.<name>].disabled_reason`** — required whenever a stage sets
+  `enabled = false`, and rejected while the stage is enabled (a reason for a
+  running stage is a lie in the configuration). The recorded reason is echoed
+  in the pipeline line (`skip lint: disabled: …`), carried in the
+  `<stage>.disabled` gate's summary and `details`, written into the result
+  document, reported by `./ci policy`, and listed under **Suspended stages** in
+  the run summary. The rationale and rejected alternatives are decisions.md D18.
+
+## Changed
+
+- **A stage can no longer be disabled silently.** `enabled = false` without
+  `disabled_reason` is now a configuration error with the one-line fix in the
+  remediation. No configuration in this workspace disables a stage, so nothing
+  else had to change; the schema version stays 1 because no key changed
+  meaning — only the undocumented state is refused.
+- The `repository.disabled` gate built its own SKIP by hand; it now uses the
+  shared `disabled_gate`, so every stage reports a suspension identically.
+- Test count 229 → 234.
+
 # ci-fabric 0.8.1
 
 Attestation honesty: say what the bundle proves, and nothing more.

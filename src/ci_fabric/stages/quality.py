@@ -11,7 +11,7 @@ import time
 
 from ..context import Context
 from ..gates import GateResult, StageResult, skipped, stage_result
-from .base import Echo, disabled_gate, no_command_gate, run_stage_commands
+from .base import Echo, disabled_gate, disabled_skip_reason, no_command_gate, run_stage_commands
 
 
 def _elapsed(started: float) -> float:
@@ -47,7 +47,7 @@ def run_check_stage(
             name,
             [disabled_gate(stage=stage)],
             duration_seconds=_elapsed(started),
-            skipped_reason="disabled",
+            skipped_reason=disabled_skip_reason(stage),
         )
     commands = stage.fix_commands if fix_mode else stage.commands
     if not commands:

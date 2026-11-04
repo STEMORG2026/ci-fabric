@@ -20,7 +20,7 @@ from ..supplychain import (
     write_manifest,
 )
 from ..util import ensure_dir, is_within, relpath
-from .base import Echo, disabled_gate, run_stage_commands
+from .base import Echo, disabled_gate, disabled_skip_reason, run_stage_commands
 
 
 def _expand(context: Context, patterns: list[str]) -> list[Path]:
@@ -98,7 +98,7 @@ def run_package_stage(context: Context, echo: Echo) -> StageResult:
             "package",
             [disabled_gate(stage=stage)],
             duration_seconds=time.monotonic() - started,
-            skipped_reason="disabled",
+            skipped_reason=disabled_skip_reason(stage),
         )
 
     gates: list[GateResult] = []

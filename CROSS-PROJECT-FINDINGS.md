@@ -13,9 +13,9 @@ could run under — or invoke — `./ci`.
 
 | repo | baseline commit | first full read |
 | --- | --- | --- |
-| MACP | `1adfd61` | 2026-10-26 (all src/lib, bin, hooks, enforce/, protocol docs) |
-| Universal_Software_Auditor | `a2ebed0` | 2026-10-26 (CI surface: action.yml, workflows, ci-integration, gate/exit semantics, package scripts) |
-| AutoDOC | `b2666ce` | 2026-10-26 (wheel CLI, autodoc.toml schema, Makefile gate composition, workflows) |
+| MACP | `086be27` | 2026-10-26 (all src/lib, bin, hooks, enforce/, protocol docs) |
+| Universal_Software_Auditor | `eced4c9` | 2026-10-26 (CI surface: action.yml, workflows, ci-integration, gate/exit semantics, package scripts) |
+| AutoDOC | `2179ecc` | 2026-10-26 (wheel CLI, autodoc.toml schema, Makefile gate composition, workflows) |
 
 ## Shared conventions (confirmed across all four projects)
 
@@ -179,5 +179,32 @@ Interfaces relevant to ci-fabric:
   Shipped this cycle: 0.6.0 (content-addressed build cache, D13), the
   `.env.example` exception, and this log. New baselines: MACP `495ef95`,
   USA `3ddd30c`, AutoDOC `4e26ca1`.
-- Cycle 5 (pending): delta from `495ef95` (MACP), `3ddd30c` (USA),
-  `4e26ca1` (AutoDOC).
+- Cycle 5 (2026-11-04): delta from `495ef95` (MACP, 245 commits),
+  `3ddd30c` (USA, 10), `4e26ca1` (AutoDOC, 6). Read scope: every delta commit
+  subject, plus full diffs for USA's CI surface, AutoDOC's release/adoption
+  commits and the MACP modules the non-state commits touched — not all 31k
+  lines of MACP's diff, most of which is `chore(state)` session churn.
+  **Adopted (0.9.0):** USA's reasoned-suspension pattern (`.macp/SUSPENDED`:
+  owner/since/reason, refused when incomplete, honoured with the reason printed)
+  became ci-fabric's `disabled_reason` — a stage can no longer be disabled
+  silently (decisions.md D18). This was a real hole on our side: disabling a
+  stage produced one SKIP reading `enabled=false`, with nothing in the summary
+  or the JSON saying who or why. **Second adopter confirmed:** AutoDOC carries a
+  generated `ci.toml`, the `./ci` shim and a real `.ci/` trail — 17 runs ending
+  PASS (48 pass / 1 skip / 0 fail) at `0460da5`, no new adoption friction; the
+  trail predates their 0.4.0 release work, so it will need a re-run on their
+  next release. **Not applicable:** USA's checksum-verified trivy asset fetch
+  (ci-fabric does not download or install toolchains — a stated non-goal) and
+  their SLSA/Sigstore provenance bundle, which is evidence for the open
+  default-signer item rather than a gap in ours (our provenance is already
+  inside the signed checksum set). **Consistent, no change:** MACP's
+  measure-at-HEAD `recon` (one measurement authorises one session at one
+  commit), its gate set frozen at authorisation (F-04/F-05), and AutoDOC's
+  release gate for tag/version/changelog — ci-fabric pins the revision and
+  config hash per run, refuses dirty release trees, freezes required stages per
+  profile, and gates version drift + changelog structure (D16).
+  **Worth a later read:** MACP's `docs/PROTOCOL.md` §1.1 rule — "gate what
+  compounds, deliver what is visible, delete what is ritual" — is a sharper
+  classification of pre-session steps than anything in `gates.md`; it invites
+  an honest audit of whether any ci-fabric gate is ritual. Not acted on this
+  cycle. New baselines are the table above.

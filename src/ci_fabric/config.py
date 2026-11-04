@@ -169,6 +169,10 @@ class StageConfig:
     fix_commands: list[str] = field(default_factory=list)
     required: bool = False
     enabled: bool = True
+    # A disabled stage must say who suspended it and why: the reason is echoed
+    # in every run and recorded in the result document, so a suspension is on
+    # the record instead of being a silent bypass (decisions.md D18).
+    disabled_reason: str | None = None
     timeout_seconds: int = 600
     cwd: str = "."
     env: dict[str, str] = field(default_factory=dict)
@@ -522,6 +526,7 @@ def _parse_stage(name: str, doc: dict[str, Any], where: str, policy: PolicyConfi
         "fix_commands",
         "required",
         "enabled",
+        "disabled_reason",
         "timeout",
         "cwd",
         "env",
@@ -611,6 +616,23 @@ def _parse_stage(name: str, doc: dict[str, Any], where: str, policy: PolicyConfi
 
     required = _boolean(doc, "required", where, False)
     enabled = _boolean(doc, "enabled", where, True)
+    disabled_reason = _string(doc, "disabled_reason", where)
+    if disabled_reason is not None:
+        disabled_reason = disabled_reason.strip() or None
+    if not enabled and not disabled_reason:
+        raise ConfigError(
+            f"{where} is disabled but does not say why",
+            remediation=(
+                'Add disabled_reason = "who disabled it, and why" next to '
+                "enabled = false. A suspension nobody can read is a silent "
+                "bypass; deleting enabled = false re-enables the stage."
+            ),
+        )
+    if enabled and disabled_reason:
+        raise ConfigError(
+            f"{where}.disabled_reason has no effect while the stage is enabled",
+            remediation="Remove disabled_reason, or set enabled = false to suspend the stage.",
+        )
     timeout = _integer(
         doc,
         "timeout",
@@ -644,6 +666,7 @@ def _parse_stage(name: str, doc: dict[str, Any], where: str, policy: PolicyConfi
         fix_commands=fix_commands,
         required=required,
         enabled=enabled,
+        disabled_reason=disabled_reason,
         timeout_seconds=timeout,
         cwd=cwd,
         env=env,
