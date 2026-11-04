@@ -31,9 +31,11 @@ makes the local pipeline more rigorous comes in.
 - **Artifact cache.** Content-addressed storage for package outputs so
   unchanged trees skip rebuilds; keyed on the revision and input digests the
   manifest already records.
-- **Generic container strategy.** A third `deploy` strategy (today: `process`
-  and `static`) that wraps the same release bundle in an OCI image built
-  deterministically, without requiring Docker for consumers who do not want it.
+- ~~**Generic container strategy.**~~ ~Done in 0.10.0 (decisions.md D19):~
+  `[deploy.<env>].strategy = "oci"` builds a deterministic OCI image layout from
+  the verified release artifact in-process — no daemon required to produce it —
+  verifies the digest chain before use, and hands the image to a runtime through
+  an optional bring-your-own `image_command`.
 - ~~**Stateful-system checks.**~~ ~Done in 0.7.0 (decisions.md D14):
   `[deploy.<env>].invariants` block activation like health failures —
   auto-rollback included — and `./ci smoke` re-proves them on every run.~
@@ -76,7 +78,7 @@ makes the local pipeline more rigorous comes in.
 ## Status honesty
 
 This project is **Beta**: the gate model, packaging, release, deploy, and
-rollback paths are implemented and self-tested (234 tests across four tiers,
+rollback paths are implemented and self-tested (248 tests across four tiers,
 full pipeline green on this repository), but there is no default signer story
 (signing is a bring-your-own command contract) and hosted-CI execution is
 deliberately deferred. Treat it as a strong local CI with an explicit,

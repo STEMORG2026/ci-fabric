@@ -77,9 +77,27 @@ created only with `--tag` and are treated as immutable.
 `deploy` resolves a **verified local release** — it never rebuilds, and the
 deployed bytes' SHA-256 is recorded. `process` environments run your
 `start_command` in its own process group; `static` environments serve
-`public_dir`. Ports can be fixed or `port = 0` for automatic allocation. All
-deploy state changes are serialized per environment with `flock` and appended
-to `history.jsonl`.
+`public_dir`; `oci` environments wrap the same verified artifact in a
+deterministic OCI image layout (decisions.md D19). Ports can be fixed or
+`port = 0` for automatic allocation. All deploy state changes are serialized
+per environment with `flock` and appended to `history.jsonl`.
+
+### OCI environments (`strategy = "oci"`)
+
+No daemon and no Docker are required to *produce* the image: the layer is a
+deterministic tar of the extracted artifact, and the config, manifest, index and
+`oci-layout` marker are written beside it under
+`.localci/deploy/<env>/releases/<deploy_id>/image/`, plus a runtime-loadable
+`image.tar`. Activation builds the image, re-verifies the whole digest chain
+from `index.json` down to every blob, and only then runs your optional
+`image_command` handoff. Nothing is started and no port is bound, so:
+
+- `health` re-proves the digest chain instead of probing HTTP;
+- `smoke` does the same, then runs `smoke_commands` and `invariants`;
+- a deployment whose layout stops matching its recorded digest fails health,
+  smoke and rollback — bytes that cannot be re-proved are never reactivated;
+- rollback is a *proof*, not a rebuild: the recorded layout must still hash to
+  the recorded digest.
 
 Failure behavior:
 

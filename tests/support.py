@@ -320,6 +320,26 @@ def write_static_app(root: Path, body: str, *, directory: str = "app") -> None:
     write_files(root, {f"{directory}/index.html": f"<html><body>{body}</body></html>\n"})
 
 
+def oci_deploy_sections(*, extra: str = "", image_command: str | None = None) -> list[str]:
+    """A deployable fixture whose deploy strategy is a deterministic OCI image."""
+    deploy = [
+        '[deploy.local]\nstrategy = "oci"\n',
+        'image_tag = "fixture-{version}"\n',
+        'image_entrypoint = ["/index.html"]\n',
+        "health_timeout = 15\nsmoke_timeout = 60\n",
+    ]
+    if image_command:
+        deploy.append(f'image_command = "{image_command}"\n')
+    deploy.append(extra)
+    return [
+        '[stages.package]\nrequired = true\nstrategy = "archive"\n'
+        'inputs = ["app"]\nstrip_prefix = "app"\noutput = "{artifacts}/package.tar.gz"',
+        "[stages.artifact]\nrequired = true\nverify_archives = true\n"
+        'scan_secrets = true\nmust_contain = ["index.html"]',
+        "".join(deploy),
+    ]
+
+
 PROCESS_SERVER = """\
 import http.server
 import os

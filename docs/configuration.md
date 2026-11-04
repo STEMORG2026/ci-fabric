@@ -116,14 +116,25 @@ business, enforced at release time.
 
 ## `[deploy.<env>]`
 
-`strategy` (`process` | `static`), `start_command` (required for `process`),
-`server_command` (optional static file server), `public_dir`, `app_subdir`,
-`host`, `port` (`0` = allocate a free port), `health_path`, `readiness_path`,
-`health_expect`, `health_timeout`, `smoke_path`, `smoke_expect`,
-`smoke_commands`, `invariants` (stateful-system checks that block deploy
-and are re-run by `./ci smoke` — decisions.md D14), `stop_timeout`,
-`artifact_name`, `auto_rollback` (default
-true), `env`, `env_required`.
+`strategy` (`process` | `static` | `oci`), `start_command` (required for
+`process`), `server_command` (optional static file server), `public_dir`,
+`app_subdir`, `host`, `port` (`0` = allocate a free port), `health_path`,
+`readiness_path`, `health_expect`, `health_timeout`, `smoke_path`,
+`smoke_expect`, `smoke_commands`, `invariants` (stateful-system checks that
+block deploy and are re-run by `./ci smoke` — decisions.md D14),
+`stop_timeout`, `artifact_name`, `auto_rollback` (default true), `env`,
+`env_required`.
+
+`strategy = "oci"` wraps the verified release artifact in a deterministic OCI
+image layout built without a container runtime (decisions.md D19), with these
+keys: `image_tag` (default `<project>:<version>`; placeholders allowed),
+`image_platform` (`linux/amd64` default, or `linux/arm64`), `image_entrypoint`
+(a list, e.g. `["/bin/run.sh"]`; empty means a data-only image), and
+`image_command` — a bring-your-own handoff that runs at the repository root
+with `{image}`, `{image_tag}`, `{image_digest}`, `{image_dir}` and
+`{image_archive}` available, and fails the deploy when it exits non-zero.
+`port`, `start_command` and `server_command` are rejected for this strategy:
+nothing is started and nothing is bound.
 
 `env` values may be `${VAR}` references. **Literal secret-shaped values are
 rejected at load time** — the configuration must never contain credentials;

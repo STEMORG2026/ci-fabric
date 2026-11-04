@@ -294,6 +294,40 @@ configuration schema to 2 (no key changed meaning and no valid configuration
 became ambiguous — only silent bypasses are refused, and refusing them at load
 with the one-line fix is the honest migration).
 
+## D19 — An OCI image is built from the artifact, not by a daemon
+
+**Decision.** `[deploy.<env>].strategy = "oci"` wraps the verified release
+artifact in an OCI image layout written by ci-fabric itself: the layer is the
+same deterministic tar the package writer produces (sorted entries,
+`SOURCE_DATE_EPOCH` mtimes, uid/gid 0), the config/manifest/index/`oci-layout`
+documents are canonical JSON, and blobs are stored by digest under
+`blobs/sha256/`. Activation builds it, re-verifies the whole chain from
+`index.json` down to every blob, records the manifest digest as the deployment's
+identity, and only then runs the optional bring-your-own `image_command`. No
+daemon, no Docker, no network.
+
+**Why.** The roadmap asked for a container strategy "without requiring Docker
+for consumers who do not want it", and the digest chain is the part that matters:
+an image digest is a promise about bytes, and the promise is cheap to verify if
+you own the writer. Producing the layout in-process also keeps the deploy
+strategy honest with the rest of the tool — the image is a function of the
+verified release artifact (the same bytes `static` and `process` deploy), not of
+a host build cache or a daemon's mood, so two machines deploying the same
+release produce the same digest. Health for this strategy is the chain, not a
+connection: nothing is running, and inventing an HTTP probe would be a lie.
+
+**Rejected.** Shelling out to `docker build`/`buildah`/`podman` (a runtime
+becomes a build dependency and the image stops being reproducible by
+construction — the daemon's cache, timestamps and base-image drift leak in);
+gzip-compressing the layer (a second digest, `diff_id`, must then be reconciled
+against the compressed digest for no benefit in a local tool; uncompressed tar
+is byte-identical everywhere); pretending an `oci` deployment serves HTTP so the
+existing probe could be reused (it would probe a URL nothing listens on and
+report a false failure — worse, someone would then add a real server to satisfy
+it); rebuilding the image on rollback (a rollback must restore *proved* bytes,
+and re-running a build is the one action that can silently produce different
+ones).
+
 ## Pending decisions (deliberately open)
 
 - A first-class default signer story (cosign keyless) — coverage of the

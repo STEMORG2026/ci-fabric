@@ -301,6 +301,41 @@ env = { PUBLIC_BASE_URL = "https://example.invalid" }
         )
 
 
+def test_deploy_oci_parses_defaults_and_refuses_misplaced_keys(tmp_path: Path) -> None:
+    config = load(
+        tmp_path,
+        BASE
+        + """
+[deploy.local]
+strategy = "oci"
+image_tag = "fixture-{version}"
+image_entrypoint = ["/bin/run.sh"]
+""",
+    )
+    environment = config.deploy["local"]
+    assert environment.strategy == "oci"
+    assert environment.image_platform == "linux/amd64"
+    assert environment.image_tag == "fixture-{version}"
+    assert environment.image_entrypoint == ["/bin/run.sh"]
+    assert environment.image_command is None
+
+    # A process/static concept with strategy=oci is a lie in the config.
+    for key in ('start_command = "serve"', "port = 8080", 'server_command = "serve"'):
+        with pytest.raises(ConfigError, match="has no effect with strategy=oci"):
+            load(tmp_path, BASE + f'\n[deploy.local]\nstrategy = "oci"\n{key}\n')
+    # An image key on any other strategy has no effect either.
+    with pytest.raises(ConfigError, match="only apply to strategy=oci"):
+        load(
+            tmp_path,
+            BASE + '\n[deploy.local]\nstrategy = "static"\nimage_tag = "x:1"\n',
+        )
+    with pytest.raises(ConfigError, match="image_platform must be"):
+        load(
+            tmp_path,
+            BASE + '\n[deploy.local]\nstrategy = "oci"\nimage_platform = "linux/s390x"\n',
+        )
+
+
 def test_env_expansion_never_silently_empties(tmp_path: Path) -> None:
     from ci_fabric.config import expand_env_value
 

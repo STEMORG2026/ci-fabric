@@ -33,6 +33,7 @@ from typing import Any
 from .config import Config, DeployEnvConfig, expand_env_value
 from .context import Context
 from .errors import CiError
+from .oci import build_image, verify_layout
 from .release import ReleaseBundle, resolve_release, select_artifact
 from .runner import exit_remediation, run_command, shell_executable
 from .util import (
@@ -98,6 +99,12 @@ class DeployRecord:
     log: str = ""
     started_at: str = ""
     status: str = "starting"
+    # strategy = "oci": the image this deployment produced, and its immutable
+    # reference. The layout is re-verified before health is reported.
+    image_tag: str = ""
+    image_dir: str = ""
+    image_archive: str = ""
+    image_digest: str = ""
     health: dict[str, Any] = field(default_factory=dict)
     smoke: dict[str, Any] = field(default_factory=dict)
     env_keys: list[str] = field(default_factory=list)
@@ -169,6 +176,10 @@ class DeployRecord:
             restarted_at=str(data["restarted_at"]) if data.get("restarted_at") else None,
             superseded_at=str(data["superseded_at"]) if data.get("superseded_at") else None,
             error=str(data["error"]) if data.get("error") else None,
+            image_tag=str(data.get("image_tag", "")),
+            image_dir=str(data.get("image_dir", "")),
+            image_archive=str(data.get("image_archive", "")),
+            image_digest=str(data.get("image_digest", "")),
         )
 
 
@@ -338,6 +349,12 @@ _LIVE_CHILDREN: dict[int, subprocess.Popen[bytes]] = {}
 
 
 def _liveness(record: DeployRecord) -> bool:
+    if record.strategy == "oci":
+        # No process to poll: an OCI deployment is live while its record is
+        # active and names the image digest. The digest chain itself is
+        # re-verified wherever the repository root is available (health, smoke,
+        # status) — this is the cheap check used for state transitions.
+        return record.status == "active" and bool(record.image_digest)
     pid = record.pid
     if pid is None:
         return False
@@ -434,6 +451,10 @@ def _probe_host(host: str) -> str:
 
 
 def _base_url(environment: DeployEnvConfig, host: str, port: int) -> str:
+    if environment.strategy == "oci":
+        # Nothing is listening: an OCI deployment's identity is its image
+        # reference, recorded separately. An invented URL here would be a lie.
+        return ""
     if environment.base_url:
         value = environment.base_url.rstrip("/")
         if not value.startswith(("http://", "https://")):
@@ -522,6 +543,18 @@ def _render_extra(
     }
 
 
+def _image_extra(root: Path, record: DeployRecord) -> dict[str, str]:
+    if not record.image_digest:
+        return {}
+    return {
+        "image": f"{record.image_tag}@{record.image_digest}",
+        "image_tag": record.image_tag,
+        "image_digest": record.image_digest,
+        "image_dir": str((root / record.image_dir).resolve()),
+        "image_archive": str((root / record.image_archive).resolve()),
+    }
+
+
 def _deploy_environment(
     context: Context,
     environment: DeployEnvConfig,
@@ -572,6 +605,9 @@ def _select_port(
     *,
     requested: int | None = None,
 ) -> int:
+    if environment.strategy == "oci":
+        # An image deployment binds nothing; a port would be theatre.
+        return 0
     if requested is not None:
         return requested
     if environment.port:
@@ -649,6 +685,184 @@ def _new_record(
     return record
 
 
+def _run_invariants(
+    context: Context,
+    environment: DeployEnvConfig,
+    record: DeployRecord,
+    *,
+    app_dir: Path,
+    env: dict[str, str],
+    extra: dict[str, str],
+    checks: list[DeployCheck],
+    echo: Any,
+) -> tuple[bool, str | None, str | None]:
+    """Prove the system state the deployment contract requires (D14).
+
+    Shared by process/static activation and the OCI strategy: how the artifact
+    is served never changes what the system around it must look like.
+    """
+    if not environment.invariants:
+        return True, None, None
+    results: list[dict[str, Any]] = []
+    for index, raw_command in enumerate(environment.invariants, start=1):
+        command = context.render(raw_command, extra=extra)
+        echo(f"  $ {command} (invariant)")
+        log = context.paths.logs_dir / f"deploy-{record.environment}-invariant-{index:02d}.log"
+        result = run_command(
+            command,
+            cwd=app_dir,
+            env=env,
+            timeout=float(environment.smoke_timeout),
+            log_path=log,
+            echo=echo,
+        )
+        results.append(
+            {
+                "command": command,
+                "exit_code": result.exit_code,
+                "timed_out": result.timed_out,
+                "duration_seconds": round(result.duration_seconds, 3),
+                "log": relpath(log, context.root),
+            }
+        )
+        checks.append(
+            DeployCheck(
+                f"invariant-{index:02d}",
+                result.ok,
+                result.summary()
+                if result.ok
+                else f"{result.summary()}: {_tail(result.output_tail, 500)}",
+                result.duration_seconds,
+            )
+        )
+        if not result.ok:
+            record.health["invariants"] = results
+            return (
+                False,
+                f"invariant failed: {command}",
+                exit_remediation(result)
+                or "Fix the system state the invariant checks; a deployment whose "
+                "invariants do not hold is not deployed.",
+            )
+    record.health["invariants"] = results
+    return True, None, None
+
+
+def _activate_oci(
+    context: Context,
+    environment: DeployEnvConfig,
+    record: DeployRecord,
+    *,
+    echo: Any,
+) -> tuple[bool, list[DeployCheck], str | None, str | None]:
+    """Build the image layout, prove its digest chain, then hand it off."""
+    checks: list[DeployCheck] = []
+    root = context.root
+    deploy_dir = (root / record.deploy_dir).resolve()
+    app_dir = (root / record.app_dir).resolve()
+    tag = environment.image_tag or f"{slug(context.config.project.name)}:{record.version}"
+    if "{" in tag:
+        tag = context.render(
+            tag,
+            extra={**_render_extra(root, record, app_dir, app_dir), "version": record.version},
+        )
+    echo(f"  building OCI image {tag} ({environment.image_platform})")
+    try:
+        image = build_image(
+            app_dir=app_dir,
+            output_dir=deploy_dir,
+            tag=tag,
+            epoch=context.source_date_epoch,
+            platform=environment.image_platform,
+            entrypoint=environment.image_entrypoint,
+            created_by=f"ci-fabric {context.config.project.name} {record.version}",
+        )
+    except CiError as exc:
+        checks.append(DeployCheck("image.build", False, str(exc), 0.0))
+        return False, checks, str(exc), exc.remediation
+    record.image_tag = image.tag
+    record.image_dir = relpath(image.layout, root)
+    record.image_archive = relpath(image.archive, root)
+    record.image_digest = image.manifest_digest
+    checks.append(
+        DeployCheck(
+            "image.build",
+            True,
+            f"{image.reference} ({image.layer_size} byte layer)",
+        )
+    )
+
+    errors = verify_layout(image.layout, expected_manifest_digest=image.manifest_digest)
+    checks.append(
+        DeployCheck(
+            "image.verify",
+            not errors,
+            "digest chain verified" if not errors else "; ".join(errors),
+        )
+    )
+    if errors:
+        return (
+            False,
+            checks,
+            f"built image failed verification: {errors[0]}",
+            "Do not hand unverified bytes to a runtime. Recreate the release and redeploy.",
+        )
+
+    if environment.image_command:
+        extra = {
+            **{key: str(value) for key, value in _image_extra(root, record).items()},
+            **_render_extra(root, record, app_dir, app_dir),
+        }
+        command = context.render(environment.image_command, extra=extra)
+        log_path = deploy_dir / "image-command.log"
+        echo(f"  $ {command}")
+        result = run_command(
+            command,
+            cwd=context.root,
+            env=_deploy_environment(
+                context, environment, record, _deploy_paths(root, record.environment)
+            ),
+            timeout=float(max(environment.smoke_timeout, 60)),
+            log_path=log_path,
+            echo=echo,
+        )
+        checks.append(
+            DeployCheck(
+                "image.command",
+                result.ok,
+                "handoff succeeded" if result.ok else result.summary(),
+                result.duration_seconds,
+            )
+        )
+        if not result.ok:
+            return (
+                False,
+                checks,
+                f"image_command failed: {result.summary()}",
+                f"Inspect {relpath(log_path, root)}. The image layout and archive are intact; "
+                "fix the runtime handoff and redeploy.",
+            )
+
+    env = _deploy_environment(context, environment, record, _deploy_paths(root, record.environment))
+    extra = {**_render_extra(root, record, app_dir, app_dir), **_image_extra(root, record)}
+    invariants_ok, invariant_error, invariant_remediation = _run_invariants(
+        context,
+        environment,
+        record,
+        app_dir=app_dir,
+        env=env,
+        extra=extra,
+        checks=checks,
+        echo=echo,
+    )
+    if not invariants_ok:
+        return False, checks, invariant_error, invariant_remediation
+
+    record.status = "active"
+    checks.append(DeployCheck("deployment.active", True, f"image {image.reference}"))
+    return True, checks, None, None
+
+
 def _activate(
     context: Context,
     environment: DeployEnvConfig,
@@ -678,6 +892,9 @@ def _activate(
             f"static public_dir escapes the application: {record.public_dir}",
             None,
         )
+
+    if record.strategy == "oci":
+        return _activate_oci(context, environment, record, echo=echo)
 
     env = _deploy_environment(context, environment, record, paths)
     extra = _render_extra(context.root, record, app_dir, public_dir)
@@ -829,54 +1046,20 @@ def _activate(
     # distinction from smoke_commands is the claim under test — smoke proves
     # the application answers; invariants prove the *system state* around it
     # is the state the deployment contract requires.
-    if environment.invariants:
-        invariant_results: list[dict[str, Any]] = []
-        for index, raw_command in enumerate(environment.invariants, start=1):
-            command = context.render(raw_command, extra=extra)
-            echo(f"  $ {command} (invariant)")
-            log = context.paths.logs_dir / (
-                f"deploy-{record.environment}-invariant-{index:02d}.log"
-            )
-            result = run_command(
-                command,
-                cwd=app_dir,
-                env=env,
-                timeout=float(environment.smoke_timeout),
-                log_path=log,
-                echo=echo,
-            )
-            invariant_results.append(
-                {
-                    "command": command,
-                    "exit_code": result.exit_code,
-                    "timed_out": result.timed_out,
-                    "duration_seconds": round(result.duration_seconds, 3),
-                    "log": relpath(log, context.root),
-                }
-            )
-            checks.append(
-                DeployCheck(
-                    f"invariant-{index:02d}",
-                    result.ok,
-                    result.summary()
-                    if result.ok
-                    else f"{result.summary()}: {_tail(result.output_tail, 500)}",
-                    result.duration_seconds,
-                )
-            )
-            if not result.ok:
-                _terminate(record, environment.stop_timeout)
-                record.pid = None
-                record.health["invariants"] = invariant_results
-                return (
-                    False,
-                    checks,
-                    f"invariant failed: {command}",
-                    exit_remediation(result)
-                    or "Fix the system state the invariant checks; a deployment whose "
-                    "invariants do not hold is not deployed.",
-                )
-        record.health["invariants"] = invariant_results
+    invariants_ok, invariant_error, invariant_remediation = _run_invariants(
+        context,
+        environment,
+        record,
+        app_dir=app_dir,
+        env=env,
+        extra=extra,
+        checks=checks,
+        echo=echo,
+    )
+    if not invariants_ok:
+        _terminate(record, environment.stop_timeout)
+        record.pid = None
+        return False, checks, invariant_error, invariant_remediation
 
     record.status = "active"
     record.error = None
@@ -910,6 +1093,31 @@ def _restart_target(
                 f"rollback artifact no longer matches its recorded digest: {record.artifact}",
                 "Do not restart changed content; recreate the release and deploy it.",
             )
+    if record.strategy == "oci":
+        # A rollback of an image deployment is a proof, not a restart: the
+        # recorded layout must still hash to the recorded digest.
+        layout = (context.root / record.image_dir).resolve()
+        errors = verify_layout(layout, expected_manifest_digest=record.image_digest)
+        checks = [
+            DeployCheck(
+                "image.verify",
+                not errors,
+                "image digest chain verified" if not errors else "; ".join(errors),
+            )
+        ]
+        if errors:
+            return (
+                False,
+                checks,
+                f"rollback image failed verification: {errors[0]}",
+                "Re-deploy the previous version from its release bundle; do not "
+                "reactivate image bytes that no longer match their digest.",
+            )
+        record.status = "active"
+        record.error = None
+        record.restarted_at = isoformat(utc_now())
+        return True, checks, None, None
+
     if _liveness(record):
         return (
             False,
@@ -1063,11 +1271,7 @@ def deploy(
             public_dir = app_dir
 
         old_current = current
-        previous_was_running = bool(
-            old_current is not None
-            and old_current.status == "active"
-            and old_current.pid is not None
-        )
+        previous_was_running = bool(old_current is not None and _liveness(old_current))
         if previous_was_running and old_current is not None and old_current.pid is not None:
             echo(f"  stopping {old_current.version} (pid {old_current.pid})")
             stopped = _terminate(old_current, environment.stop_timeout)
@@ -1490,7 +1694,7 @@ def status(
         "record": current.to_dict(),
         "running": running,
     }
-    if check_http and running:
+    if check_http and running and current.strategy != "oci":
         health = _check_http(
             url=current.base_url + environment.health_path,
             expected=environment.health_expect,
@@ -1500,7 +1704,28 @@ def status(
             probe_process=True,
         )
         result["health"] = health.to_dict()
+    if current.strategy == "oci":
+        result["image"] = _image_check(context, current).to_dict()
     return result
+
+
+def _image_check(
+    context: Context, record: DeployRecord, *, label: str = "image.verify"
+) -> DeployCheck:
+    """Re-prove the layout's digest chain — an image deployment's only probe."""
+    started = time.monotonic()
+    if not record.image_digest or not record.image_dir:
+        return DeployCheck(label, False, "no image digest recorded")
+    errors = verify_layout(
+        (context.root / record.image_dir).resolve(),
+        expected_manifest_digest=record.image_digest,
+    )
+    return DeployCheck(
+        label,
+        not errors,
+        "digest chain verified" if not errors else "; ".join(errors),
+        time.monotonic() - started,
+    )
 
 
 def health(context: Context, environment_name: str) -> DeployOutcome:
@@ -1516,6 +1741,20 @@ def health(context: Context, environment_name: str) -> DeployOutcome:
             action="health",
             error="no deployment is recorded",
             remediation=f"Run `./ci deploy --env {environment_name}` first.",
+        )
+    if current.strategy == "oci":
+        # No process, no HTTP: health is the digest chain.
+        check = _image_check(context, current)
+        return DeployOutcome(
+            ok=check.ok,
+            environment=environment_name,
+            action="health",
+            checks=[check],
+            record=current,
+            error=None if check.ok else check.detail,
+            remediation=None
+            if check.ok
+            else "Re-deploy the release; never reactivate image bytes that fail their digest.",
         )
     if not _liveness(current):
         return DeployOutcome(
@@ -1559,6 +1798,22 @@ def smoke(context: Context, environment_name: str, *, echo: Any = print) -> Depl
             remediation=f"Run `./ci deploy --env {environment_name}` first.",
         )
     checks: list[DeployCheck] = []
+    if current.strategy == "oci":
+        image_check = _image_check(context, current)
+        checks.append(image_check)
+        if not image_check.ok:
+            return DeployOutcome(
+                ok=False,
+                environment=environment_name,
+                action="smoke",
+                checks=checks,
+                record=current,
+                error=image_check.detail,
+                remediation=(
+                    "Re-deploy the release; a layout that no longer matches its "
+                    "recorded digest is not the artifact that was verified."
+                ),
+            )
     if not _liveness(current):
         checks.append(DeployCheck("process.alive", False, "deployment process is not running"))
         return DeployOutcome(
@@ -1569,20 +1824,24 @@ def smoke(context: Context, environment_name: str, *, echo: Any = print) -> Depl
             record=current,
             error="deployment process is not running",
         )
-    checks.append(DeployCheck("process.alive", True, f"pid {current.pid}"))
-    http_check = _check_http(
-        url=current.base_url + environment.smoke_path,
-        expected=environment.smoke_expect,
-        timeout=min(environment.health_timeout, 15),
-        label="smoke-http",
-        record=current,
-        probe_process=True,
-    )
-    checks.append(http_check)
+    if current.strategy != "oci":
+        checks.append(DeployCheck("process.alive", True, f"pid {current.pid}"))
+        http_check = _check_http(
+            url=current.base_url + environment.smoke_path,
+            expected=environment.smoke_expect,
+            timeout=min(environment.health_timeout, 15),
+            label="smoke-http",
+            record=current,
+            probe_process=True,
+        )
+        checks.append(http_check)
     env = _deploy_environment(context, environment, current, paths)
     app_dir = (context.root / current.app_dir).resolve()
     public_dir = (context.root / current.public_dir).resolve()
-    extra = _render_extra(context.root, current, app_dir, public_dir)
+    extra = {
+        **_render_extra(context.root, current, app_dir, public_dir),
+        **_image_extra(context.root, current),
+    }
     for index, raw_command in enumerate(environment.smoke_commands, start=1):
         command = context.render(raw_command, extra=extra)
         echo(f"  $ {command}")

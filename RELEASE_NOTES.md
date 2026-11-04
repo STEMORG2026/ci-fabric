@@ -1,3 +1,42 @@
+# ci-fabric 0.10.0
+
+A third deploy strategy: deterministic OCI images, built without a daemon.
+
+## Added
+
+- **`[deploy.<env>].strategy = "oci"`** — wraps the verified release artifact in
+  an OCI image layout written by ci-fabric itself (blobs by digest, canonical
+  JSON config/manifest/index, `oci-layout` 1.0) plus a runtime-loadable
+  `image.tar`, from the same extracted bytes `static` and `process` deploy.
+  Nothing is started and no port is bound. Activation builds the image,
+  re-verifies the digest chain from `index.json` down to every blob, records the
+  manifest digest as the deployment's identity, and only then runs the optional
+  `image_command` handoff (bring-your-own `docker load`/`podman load`/`crane
+  push`), which fails the deploy when it fails. Decisions.md D19.
+- **`image_tag`, `image_platform`, `image_entrypoint`, `image_command`** —
+  tag (default `<project>:<version>`, placeholders allowed), `linux/amd64` or
+  `linux/arm64`, the image entrypoint, and the runtime handoff command, which
+  receives `{image}`, `{image_tag}`, `{image_digest}`, `{image_dir}` and
+  `{image_archive}`.
+
+## Changed
+
+- **`health`, `smoke`, `status` and `rollback` are strategy-aware.** For `oci`
+  they re-prove the layout's digest chain instead of probing HTTP; rollback
+  restores proved bytes and refuses a layout that no longer matches its
+  recorded digest. `deploy-status --json` reports `image` for these
+  environments.
+- **`invariants` run for every strategy.** They were inlined in the
+  process/static activation path; they are now one shared step, so an `oci`
+  deployment cannot skip the system-state contract.
+- **Misplaced deploy keys are configuration errors.** `port`, `start_command`
+  and `server_command` are rejected with `strategy = "oci"`; `image_*` keys are
+  rejected on any other strategy. A key that cannot take effect is a lie in the
+  configuration, not a harmless extra.
+- Auto-rollback now triggers when the previous deployment was live under *any*
+  strategy; before, it required a PID, which only `process`/`static` have.
+- Test count 234 → 248.
+
 # ci-fabric 0.9.0
 
 A suspended stage must say who suspended it and why.

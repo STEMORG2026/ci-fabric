@@ -253,6 +253,13 @@ class DeployEnvConfig:
     app_subdir: str | None = None
     artifact_name: str | None = None
     stop_timeout: int = 10
+    # strategy = "oci": the release artifact is wrapped in a deterministic OCI
+    # image layout built without a runtime (decisions.md D19). The runtime
+    # handoff is bring-your-own image_command, like release signing.
+    image_tag: str | None = None
+    image_platform: str = "linux/amd64"
+    image_entrypoint: list[str] = field(default_factory=list)
+    image_command: str | None = None
     env: dict[str, str] = field(default_factory=dict)
     env_required: list[str] = field(default_factory=list)
     auto_rollback: bool = True
@@ -884,14 +891,38 @@ def _parse_deploy_env(name: str, doc: dict[str, Any], where: str) -> DeployEnvCo
         "app_subdir",
         "artifact_name",
         "stop_timeout",
+        "image_tag",
+        "image_platform",
+        "image_entrypoint",
+        "image_command",
         "env",
         "env_required",
         "auto_rollback",
     }
     _check_keys(doc, allowed, where)
     strategy = _string(doc, "strategy", where, "process") or "process"
-    if strategy not in {"process", "static"}:
-        raise ConfigError(f"{where}.strategy must be process or static")
+    if strategy not in {"process", "static", "oci"}:
+        raise ConfigError(f"{where}.strategy must be process, static or oci")
+    image_keys = {"image_tag", "image_platform", "image_entrypoint", "image_command"}
+    if strategy != "oci" and image_keys & set(doc):
+        raise ConfigError(
+            f"{where}: image_* keys only apply to strategy=oci",
+            remediation='Remove them, or set strategy = "oci".',
+        )
+    if strategy == "oci":
+        for key in ("start_command", "server_command", "port"):
+            if key in doc:
+                raise ConfigError(
+                    f"{where}.{key} has no effect with strategy=oci",
+                    remediation=(
+                        "An OCI deployment produces and verifies an image; it starts no "
+                        "process and binds no port. Hand the image to a runtime with "
+                        "image_command, or use strategy=process."
+                    ),
+                )
+    image_platform = _string(doc, "image_platform", where, "linux/amd64") or "linux/amd64"
+    if image_platform not in {"linux/amd64", "linux/arm64"}:
+        raise ConfigError(f"{where}.image_platform must be linux/amd64 or linux/arm64")
     start_command = _string(doc, "start_command", where)
     if strategy == "process" and not start_command:
         raise ConfigError(f"{where}.start_command is required for strategy=process")
@@ -948,6 +979,10 @@ def _parse_deploy_env(name: str, doc: dict[str, Any], where: str) -> DeployEnvCo
         app_subdir=app_subdir,
         artifact_name=_string(doc, "artifact_name", where),
         stop_timeout=_integer(doc, "stop_timeout", where, 10, minimum=1, maximum=300),
+        image_tag=_string(doc, "image_tag", where),
+        image_platform=image_platform,
+        image_entrypoint=_string_list(doc, "image_entrypoint", where),
+        image_command=_string(doc, "image_command", where),
         env=environment,
         env_required=env_required,
         auto_rollback=_boolean(doc, "auto_rollback", where, True),
