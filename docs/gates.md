@@ -44,6 +44,8 @@ verify the exact bytes that would be released or deployed, not a byproduct.
 | `repository.lockfiles` | repository | BLOCKING | declared lockfiles must exist **and** be tracked — dependency resolution must be reproducible |
 | `repository.links` | repository | WARN-able | broken relative links rot documentation |
 | `repository.license` | repository | WARNING | a repository without license terms is unusable downstream |
+| `repository.generated` | repository | BLOCKING | every declared generator is re-run and the tree must be unchanged — generated output that drifts from its source is a lie (D6) |
+| `repository.state-ignored` | repository | WARNING | `.ci/` must be ignored, or run state and logs pollute the tracked tree |
 | `<stage>.01…` | command stages | per stage | the command itself; exit code, output tail, and log recorded |
 | `<test>.discovery` | test stages | BLOCKING | a configured test command that matches zero test files is a false pass waiting to happen |
 | `<test>.junit` | test stages | BLOCKING | parses the JUnit report; `min_tests` enforces a real count |
@@ -52,7 +54,7 @@ verify the exact bytes that would be released or deployed, not a byproduct.
 | `security.config` | security | per stage | configuration hygiene, e.g. literal credentials in `[deploy.*].env` |
 | `audit.dependencies.*` | audit | per stage | dependency vulnerability audit |
 | `build.outputs` | build | BLOCKING | a build that produces nothing cannot be validated, released, or deployed |
-| `build.clean` | build | BLOCKING | declared outputs are emptied before the build and before a cache restore, so a bundle is this revision's artifacts rather than this machine's build history (D15) |
+| `build.clean` | build | BLOCKING (+ WARN `build.clean.tracked`) | declared outputs are emptied before the build and before a cache restore, so a bundle is this revision's artifacts rather than this machine's build history (D15). A path tracked in Git is never deleted — it is reported as a WARNING instead |
 | `build.cache` | build | opt-in | a green build's declared outputs are reused at the same revision with identical rendered commands; hits are digest-verified, misses rebuild (D13) |
 | `package.*` (manifest/checksums/SBOM) | package | per stage | deterministic archive + supply-chain metadata |
 | `artifact.manifest/integrity/archives/contents/secrets/smoke` | artifact | per stage | checksums match, extraction is traversal-safe, required contents exist, no secrets inside the artifact |
