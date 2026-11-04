@@ -117,6 +117,15 @@ class DeployRecord:
     def running(self) -> bool:
         return self.status == "active" and self.pid is not None
 
+    @property
+    def target(self) -> str:
+        """What this deployment *is*: a URL, or an immutable image reference."""
+        if self.strategy == "oci":
+            if not self.image_digest:
+                return ""
+            return f"{self.image_tag}@{self.image_digest}"
+        return self.base_url
+
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
@@ -1913,6 +1922,8 @@ def deploy_summary(context: Context) -> list[dict[str, Any]]:
                 "environment": name,
                 "deployed": current is not None,
                 "version": current.version if current else None,
+                "strategy": current.strategy if current else context.config.deploy[name].strategy,
+                "target": current.target if current else None,
                 "base_url": current.base_url if current else None,
                 "running": _liveness(current) if current else False,
                 "status": current.status if current else None,

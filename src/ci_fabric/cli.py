@@ -291,9 +291,10 @@ def _print_outcome(outcome: Any, *, echo: Any = _echo) -> None:
         echo(f"  {marker} {check.name}: {check.detail}")
     if outcome.record is not None:
         record = outcome.record
+        where = f"at {record.base_url}" if record.base_url.startswith("http") else record.target
         echo(
             f"  deployment {record.deploy_id}: {record.version} "
-            f"({record.strategy}) at {record.base_url} [{record.status}]"
+            f"({record.strategy}) {where} [{record.status}]"
         )
         if record.log:
             echo(f"  log: {record.log}")
@@ -522,8 +523,9 @@ def _cmd_status(args: argparse.Namespace, root: Path, config: Config) -> int:
                 state = "running" if item.get("running") else "stopped"
                 print(
                     f"    - {item['environment']}: "
-                    f"{item.get('version') or 'none'} ({state}) "
-                    f"{item.get('base_url') or ''}"
+                    f"{item.get('version') or 'none'} "
+                    f"({item.get('strategy') or 'unconfigured'}, {state}) "
+                    f"{item.get('target') or ''}"
                 )
         else:
             print("  deployments: none configured")
@@ -559,6 +561,7 @@ def _cmd_status(args: argparse.Namespace, root: Path, config: Config) -> int:
 
 def _cmd_deploy_status(args: argparse.Namespace, root: Path, config: Config) -> int:
     context = create_context(config.root, config, clean_env=args.clean_env)
+    info: dict[str, Any]
     if args.env:
         info = deployment_status(context, args.env, check_http=not args.no_http)
     else:
@@ -570,16 +573,21 @@ def _cmd_deploy_status(args: argparse.Namespace, root: Path, config: Config) -> 
             for item in info["environments"]:
                 print(
                     f"{item['environment']}: {item.get('version') or 'none'} "
-                    f"({'running' if item.get('running') else 'stopped'}) "
-                    f"{item.get('base_url') or ''}"
+                    f"({item.get('strategy') or 'unconfigured'}, "
+                    f"{'running' if item.get('running') else 'stopped'}) "
+                    f"{item.get('target') or ''}"
                 )
         else:
             record = info.get("record") or {}
+            target = record.get("base_url") or ""
+            if record.get("strategy") == "oci" and record.get("image_digest"):
+                target = f"{record.get('image_tag', '')}@{record['image_digest']}"
             print(
                 f"{info.get('environment')}: "
                 f"{record.get('version', 'none')} "
-                f"({'running' if info.get('running') else 'stopped'}) "
-                f"{record.get('base_url', '')}"
+                f"({record.get('strategy') or 'unconfigured'}, "
+                f"{'running' if info.get('running') else 'stopped'}) "
+                f"{target}"
             )
             if info.get("health"):
                 health_info = info["health"]

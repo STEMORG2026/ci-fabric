@@ -1,3 +1,19 @@
+# ci-fabric 0.10.1
+
+An image deployment says what it is.
+
+## Fixed
+
+- **`./ci status` and `./ci deploy-status` name the image.** An `oci`
+  environment used to print `local: 1.0.0 (running)` with an empty URL — the one
+  fact that identifies the deployment, its digest, was invisible. Both commands
+  now report the strategy and a `target`: the URL for `process`/`static`, the
+  immutable `tag@digest` reference for `oci`. The `deploy-status --json`
+  environments list gains `strategy` and `target`; `base_url` stays, empty for
+  `oci`, because nothing is listening and an invented URL would be a lie.
+- `./ci deploy` no longer prints a dangling `at` when the strategy has no URL:
+  it prints the reference instead.
+
 # ci-fabric 0.10.0
 
 A third deploy strategy: deterministic OCI images, built without a daemon.

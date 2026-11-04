@@ -99,6 +99,10 @@ from `index.json` down to every blob, and only then runs your optional
 - rollback is a *proof*, not a rebuild: the recorded layout must still hash to
   the recorded digest.
 
+`./ci status` and `./ci deploy-status` name each environment's `strategy` and a
+`target` — the URL for `process`/`static`, and the immutable `tag@digest`
+reference for `oci` (whose `base_url` is empty by design; nothing is listening).
+
 Failure behavior:
 
 - If the new version fails health checks and `auto_rollback = true` and a

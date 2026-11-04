@@ -5,13 +5,22 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ci_fabric.deployment import deploy, health, rollback, smoke, status, undeploy
+from ci_fabric.deployment import (
+    deploy,
+    deploy_summary,
+    health,
+    rollback,
+    smoke,
+    status,
+    undeploy,
+)
 from ci_fabric.release import create_release
 from tests.support import (
     bump_version,
     commit_all,
     make_repo,
     oci_deploy_sections,
+    run_cli,
     run_fixture_pipeline,
     write_files,
 )
@@ -168,6 +177,34 @@ def test_rollback_restores_the_previous_image_by_proof(tmp_path: Path) -> None:
         refused = rollback(context2, "local")
         assert not refused.ok
         assert "failed verification" in (refused.error or "")
+    finally:
+        undeploy(context, "local")
+
+
+def test_status_commands_name_the_image_instead_of_an_empty_url(tmp_path: Path) -> None:
+    root = make_oci_repo(tmp_path, sections=oci_deploy_sections())
+    _, context = run_fixture_pipeline(root, command="ci")
+    create_release(context)
+    try:
+        outcome = deploy(context, "local")
+        assert outcome.ok, outcome.error
+        record = outcome.record
+        assert record is not None
+        reference = f"{record.image_tag}@{record.image_digest}"
+
+        summaries = deploy_summary(context)
+        assert summaries[0]["strategy"] == "oci"
+        assert summaries[0]["target"] == reference
+
+        listed = run_cli(root, "status")
+        assert listed.returncode == 0, listed.stderr
+        assert reference in listed.stdout
+        assert "(oci, running)" in listed.stdout
+        assert "None" not in listed.stdout
+
+        single = run_cli(root, "deploy-status", "--env", "local")
+        assert single.returncode == 0, single.stderr
+        assert reference in single.stdout
     finally:
         undeploy(context, "local")
 
