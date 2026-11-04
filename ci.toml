@@ -61,11 +61,11 @@ commands = ["{python} -m mypy src"]
 
 [stages.unit]
 required = true
-# The tier measures itself into the run-scoped parallel data file; the
-# coverage stage combines all tiers instead of re-running the suite.
-env = { COVERAGE_FILE = "{artifacts}/coverage.data" }
+# measure_coverage: the tier exports its own parallel data file and runs under
+# coverage; the coverage stage combines what the tiers measured.
+measure_coverage = true
 commands = [
-  "{python} -m coverage run --parallel-mode -m pytest -q tests/unit --junitxml={artifacts}/junit-unit.xml",
+  "{python} -m pytest -q tests/unit --junitxml={artifacts}/junit-unit.xml",
 ]
 junit_path = "{artifacts}/junit-unit.xml"
 test_globs = ["tests/unit/**/*.py"]
@@ -73,11 +73,9 @@ min_test_files = 1
 
 [stages.integration]
 required = true
-# The tier measures itself into the run-scoped parallel data file; the
-# coverage stage combines all tiers instead of re-running the suite.
-env = { COVERAGE_FILE = "{artifacts}/coverage.data" }
+measure_coverage = true
 commands = [
-  "{python} -m coverage run --parallel-mode -m pytest -q tests/integration --junitxml={artifacts}/junit-integration.xml",
+  "{python} -m pytest -q tests/integration --junitxml={artifacts}/junit-integration.xml",
 ]
 junit_path = "{artifacts}/junit-integration.xml"
 test_globs = ["tests/integration/**/*.py"]
@@ -85,11 +83,12 @@ min_test_files = 1
 
 [stages.contract]
 required = true
-# The tier measures itself into the run-scoped parallel data file; the
-# coverage stage combines all tiers instead of re-running the suite.
-env = { COVERAGE_FILE = "{artifacts}/coverage.data", CI_FABRIC_COVERAGE = "1" }
+# CI_FABRIC_COVERAGE makes the CLI subprocesses these tiers spawn measure
+# themselves too; COVERAGE_FILE comes from measure_coverage.
+measure_coverage = true
+env = { CI_FABRIC_COVERAGE = "1" }
 commands = [
-  "{python} -m coverage run --parallel-mode -m pytest -q tests/contract --junitxml={artifacts}/junit-contract.xml",
+  "{python} -m pytest -q tests/contract --junitxml={artifacts}/junit-contract.xml",
 ]
 junit_path = "{artifacts}/junit-contract.xml"
 test_globs = ["tests/contract/**/*.py"]
@@ -97,11 +96,10 @@ min_test_files = 1
 
 [stages.e2e]
 required = true
-# The tier measures itself into the run-scoped parallel data file; the
-# coverage stage combines all tiers instead of re-running the suite.
-env = { COVERAGE_FILE = "{artifacts}/coverage.data", CI_FABRIC_COVERAGE = "1" }
+measure_coverage = true
+env = { CI_FABRIC_COVERAGE = "1" }
 commands = [
-  "{python} -m coverage run --parallel-mode -m pytest -q tests/e2e --junitxml={artifacts}/junit-e2e.xml",
+  "{python} -m pytest -q tests/e2e --junitxml={artifacts}/junit-e2e.xml",
 ]
 junit_path = "{artifacts}/junit-e2e.xml"
 test_globs = ["tests/e2e/**/*.py"]
@@ -109,15 +107,14 @@ min_test_files = 1
 
 [stages.coverage]
 required = true
-# Test tiers already measured themselves into {artifacts}/coverage.data.*
-# (parallel mode, branch config from pyproject, CLI subprocesses measured
-# deliberately via CI_FABRIC_COVERAGE=1). This stage combines them; the
-# parenthesised fallback keeps a standalone `./ci coverage` self-contained.
-env = { COVERAGE_FILE = "{artifacts}/coverage.data" }
+# The tiers above measure themselves into {artifacts}/coverage.data.*, and this
+# stage combines them into the report the threshold is judged on — no command
+# needed. The command below is only the standalone path (`./ci coverage` with no
+# test tier in the same run, when there is nothing to combine).
+env = { COVERAGE_FILE = "{artifacts}/coverage.data", CI_FABRIC_COVERAGE = "1" }
 commands = [
-  "(ls {artifacts}/coverage.data.* >/dev/null 2>&1 || {python} -m coverage run --parallel-mode -m pytest -q tests) && {python} -m coverage combine {artifacts} && {python} -m coverage report --fail-under=74 && {python} -m coverage xml -o {artifacts}/coverage.xml",
+  "{python} -m coverage run --parallel-mode -m pytest -q tests && {python} -m coverage combine {artifacts} && {python} -m coverage report",
 ]
-report_path = "{artifacts}/coverage.xml"
 min_percent = 74
 
 [stages.security]

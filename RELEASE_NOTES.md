@@ -1,3 +1,27 @@
+# ci-fabric 0.8.0
+
+Coverage measurement becomes declarative: tiers say they measure, the runner does it.
+
+## Added
+
+- **`stages.<tier>.measure_coverage = true`** for `unit integration contract e2e`.
+  When set, the runner wraps that tier's command under coverage (branch config
+  from `pyproject.toml [tool.coverage.run]`), exports its parallel data file
+  into this run's artifact directory, and the `coverage` stage combines every
+  tier that measured into one report instead of re-running the suite. No
+  `coverage run` wrapper is needed in the tier command, and `COVERAGE_FILE`
+  plumbing is owned by the runner. The config loader rejects a `coverage` stage
+  with `min_percent` and neither a command nor a measuring tier, so the
+  "forgot to measure" case fails at load with the remedy in the message.
+  Standalone `./ci coverage` (no measuring tier in the run) keeps its own
+  `command(s)` as the fallback path.
+
+## Changed
+
+- This repository's `ci.toml` now uses `measure_coverage` on all four test
+  tiers; the coverage stage no longer re-runs the suite in the pipeline path.
+- Test count 216 → 229.
+
 # ci-fabric 0.7.1
 
 Clean build outputs: a bundle is a function of the commit, not of the machine.

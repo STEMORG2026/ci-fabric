@@ -14,6 +14,18 @@ from ..util import relpath
 
 Echo = Callable[[str], None]
 
+# Test tiers that measure their own coverage write parallel data files under
+# this basename inside the run's artifact directory; the coverage stage combines
+# whatever it finds there. One name, two stages, no hand-wired paths: the tiers
+# export COVERAGE_FILE={artifacts}/coverage.data and the coverage stage globs
+# coverage.data.* in the same directory.
+COVERAGE_DATA_NAME = "coverage.data"
+
+
+def coverage_data_files(context: Context) -> list[Path]:
+    """Parallel data files the test tiers measured into this run."""
+    return sorted(context.paths.artifacts_dir.glob(f"{COVERAGE_DATA_NAME}.*"))
+
 
 def log_path(context: Context, stage: str, index: int) -> Path:
     return context.paths.logs_dir / f"{stage}-{index:02d}.log"

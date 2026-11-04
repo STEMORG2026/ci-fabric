@@ -75,7 +75,10 @@ coverage security audit build package artifact repository`. Common keys:
 Stage-specific keys (validated per stage):
 
 - test stages (`unit integration contract e2e`): `junit_path`, `min_test_files`,
-  `min_tests`, `allow_empty`, `test_globs`. Patterns are path-aware:
+  `min_tests`, `allow_empty`, `test_globs`, `measure_coverage` (when true, the
+  tier runs under coverage with branch config from `pyproject.toml`; its parallel
+  data file lands in this run's artifact directory and the `coverage` stage
+  combines it — no `coverage run` wrapper needed in the command). Patterns are path-aware:
   `**` matches zero or more directories (e.g. `tests/**/*.py` matches
   `tests/test_a.py`), `*` never crosses `/`.
 - `coverage`: `report_path` (coverage.py XML/JSON, lcov, or a TOTAL line),

@@ -12,7 +12,7 @@ from ..errors import CiError
 from ..gates import GateResult, StageResult, errored, failed, passed, skipped, stage_result
 from ..runner import run_command
 from ..util import parse_xml_file, read_text, relpath
-from .base import Echo, disabled_gate
+from .base import COVERAGE_DATA_NAME, Echo, coverage_data_files, disabled_gate
 
 _TOTAL_PATTERN = re.compile(r"(?i)\bTOTAL\b.*?(\d+(?:\.\d+)?)%")
 _ALL_FILES_PATTERN = re.compile(r"(?i)\bAll files\b.*\|\s*(\d+(?:\.\d+)?)\s*%?")
@@ -65,6 +65,20 @@ def _coverage_from_output(output: str) -> tuple[float | None, str]:
     return None, "no coverage percentage in output"
 
 
+def _combine_command(context: Context) -> str:
+    """The command that turns the tiers' data files into a report and XML.
+
+    No `--fail-under` here on purpose: the command measures, the
+    `coverage.threshold` gate judges. Baking the threshold into the command would
+    hide the measured number behind a shell exit code and duplicate the verdict.
+    """
+    return context.render(
+        "{python} -m coverage combine {artifacts} && "
+        "{python} -m coverage report && "
+        "{python} -m coverage xml -o {artifacts}/coverage.xml"
+    )
+
+
 def run_coverage_stage(context: Context, echo: Echo) -> StageResult:
     started = time.monotonic()
     stage = context.config.stage("coverage")
@@ -89,25 +103,38 @@ def run_coverage_stage(context: Context, echo: Echo) -> StageResult:
             duration_seconds=time.monotonic() - started,
             skipped_reason="disabled",
         )
-    if not stage.commands:
+    gates: list[GateResult] = []
+    # Tiers that declared measure_coverage left their data files in this run's
+    # artifact directory: combine them. A configured command is the standalone
+    # path (a `./ci coverage` with no measured tiers) and is used only then.
+    measured = coverage_data_files(context)
+    synthesized = _combine_command(context) if measured else None
+    if synthesized is None and not stage.commands:
         gate = failed(
             "coverage.config",
             "coverage",
             "coverage command",
             required=stage.required,
-            summary="coverage stage has no command",
-            remediation="Configure [stages.coverage] command or remove the stage.",
+            summary=("no test tier measured coverage in this run and no command is configured"),
+            remediation=(
+                "Set measure_coverage = true on a test tier (its data files are combined "
+                "here), or give [stages.coverage] a command for a standalone check."
+            ),
         )
         return stage_result("coverage", [gate], duration_seconds=time.monotonic() - started)
 
-    gates: list[GateResult] = []
-    command = context.render(stage.commands[0])
+    command = synthesized or context.render(stage.commands[0])
+    environment = context.stage_env(stage)
+    if synthesized is not None and "COVERAGE_FILE" not in stage.env:
+        environment["COVERAGE_FILE"] = str(context.paths.artifacts_dir / COVERAGE_DATA_NAME)
     log = context.paths.logs_dir / "coverage-01.log"
     echo(f"  $ {command}")
+    if measured:
+        echo(f"  combining {len(measured)} measured tier file(s) from this run")
     result = run_command(
         command,
         cwd=context.stage_cwd(stage),
-        env=context.stage_env(stage),
+        env=environment,
         timeout=float(stage.timeout_seconds),
         log_path=log,
         echo=echo,
@@ -154,6 +181,13 @@ def run_coverage_stage(context: Context, echo: Echo) -> StageResult:
             percent, source = parse_coverage_report(report_path)
         else:
             source = f"report not found: {relpath(report_path, context.root)}"
+    elif synthesized is not None:
+        # The combine sequence wrote the XML itself; the threshold reads it.
+        report_path = context.paths.artifacts_dir / "coverage.xml"
+        if report_path.is_file():
+            percent, source = parse_coverage_report(report_path)
+        else:
+            percent, source = _coverage_from_output(result.output_tail)
     else:
         percent, source = _coverage_from_output(result.output_tail)
     if percent is None and not stage.report_path:

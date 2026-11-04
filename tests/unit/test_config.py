@@ -111,6 +111,32 @@ def test_stage_specific_key_is_rejected_elsewhere(tmp_path: Path) -> None:
         load(tmp_path, BASE + "\n[stages.lint]\nmin_percent = 80\n")
 
 
+def test_coverage_threshold_accepts_tier_measured_coverage(tmp_path: Path) -> None:
+    config = load(
+        tmp_path,
+        BASE
+        + '\n[stages.unit]\ncommand = "python -m pytest"\nmeasure_coverage = true\n'
+        + "\n[stages.coverage]\nmin_percent = 80\n",
+    )
+    unit = config.stage("unit")
+    coverage = config.stage("coverage")
+    assert unit is not None and coverage is not None
+    assert unit.measure_coverage is True
+    assert coverage.min_percent == 80
+
+
+def test_coverage_threshold_without_any_source_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="no coverage source"):
+        load(tmp_path, BASE + "\n[stages.coverage]\nmin_percent = 80\n")
+
+
+def test_measure_coverage_is_rejected_on_a_stage_that_is_not_a_test_tier(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ConfigError, match="unknown key"):
+        load(tmp_path, BASE + '\n[stages.lint]\ncommand = "x"\nmeasure_coverage = true\n')
+
+
 def test_stage_parsing_and_defaults(tmp_path: Path) -> None:
     config = load(
         tmp_path,

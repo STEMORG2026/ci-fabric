@@ -177,6 +177,11 @@ class StageConfig:
     allow_empty: bool = False
     junit_path: str | None = None
     test_globs: list[str] = field(default_factory=list)
+    # Test tiers: measure this tier's own coverage into the run's artifact
+    # directory (COVERAGE_FILE={artifacts}/coverage.data) and combine it later
+    # in the coverage stage. The command must be `<interpreter> -m <module>`;
+    # anything else fails the tier rather than running unmeasured.
+    measure_coverage: bool = False
     report_path: str | None = None
     min_percent: float | None = None
     outputs: list[str] = field(default_factory=list)
@@ -523,10 +528,38 @@ def _parse_stage(name: str, doc: dict[str, Any], where: str, policy: PolicyConfi
     }
     specific: dict[str, set[str]] = {
         "format": {"fix_command", "fix_commands"},
-        "unit": {"junit_path", "min_test_files", "min_tests", "allow_empty", "test_globs"},
-        "integration": {"junit_path", "min_test_files", "min_tests", "allow_empty", "test_globs"},
-        "contract": {"junit_path", "min_test_files", "min_tests", "allow_empty", "test_globs"},
-        "e2e": {"junit_path", "min_test_files", "min_tests", "allow_empty", "test_globs"},
+        "unit": {
+            "junit_path",
+            "min_test_files",
+            "min_tests",
+            "allow_empty",
+            "test_globs",
+            "measure_coverage",
+        },
+        "integration": {
+            "junit_path",
+            "min_test_files",
+            "min_tests",
+            "allow_empty",
+            "test_globs",
+            "measure_coverage",
+        },
+        "contract": {
+            "junit_path",
+            "min_test_files",
+            "min_tests",
+            "allow_empty",
+            "test_globs",
+            "measure_coverage",
+        },
+        "e2e": {
+            "junit_path",
+            "min_test_files",
+            "min_tests",
+            "allow_empty",
+            "test_globs",
+            "measure_coverage",
+        },
         "coverage": {"report_path", "min_percent"},
         "build": {"outputs", "cache"},
         "package": {
@@ -619,6 +652,7 @@ def _parse_stage(name: str, doc: dict[str, Any], where: str, policy: PolicyConfi
         allow_empty=_boolean(doc, "allow_empty", where, False),
         junit_path=_string(doc, "junit_path", where),
         test_globs=_string_list(doc, "test_globs", where),
+        measure_coverage=_boolean(doc, "measure_coverage", where, False),
         report_path=_string(doc, "report_path", where),
         min_percent=min_percent,
         outputs=_string_list(doc, "outputs", where),
@@ -643,6 +677,29 @@ def _parse_stage(name: str, doc: dict[str, Any], where: str, policy: PolicyConfi
     return stage
 
 
+def _validate_coverage_source(stages: dict[str, StageConfig]) -> None:
+    """A coverage threshold needs something to judge.
+
+    Either a test tier measures its own coverage (`measure_coverage = true`, the
+    productized path) or the coverage stage carries the command that produces the
+    report. `min_percent` with neither is a configuration that can only fail
+    later, so it fails at load with the remedy in the message.
+    """
+    coverage = stages.get("coverage")
+    if coverage is None or coverage.commands or coverage.min_percent is None:
+        return
+    if any(stage.measure_coverage for stage in stages.values()):
+        return
+    raise ConfigError(
+        "stages.coverage has no coverage source",
+        remediation=(
+            "Set measure_coverage = true on a test tier (the coverage stage combines the "
+            "data files those tiers write), or give [stages.coverage] a command that "
+            "produces the report."
+        ),
+    )
+
+
 def _validate_stage(stage: StageConfig, policy: PolicyConfig) -> None:
     where = f"stages.{stage.name}"
     if stage.name in TEST_STAGES and stage.junit_path:
@@ -665,7 +722,6 @@ def _validate_stage(stage: StageConfig, policy: PolicyConfig) -> None:
         "integration",
         "contract",
         "e2e",
-        "coverage",
         "audit",
         "build",
     }
@@ -673,8 +729,9 @@ def _validate_stage(stage: StageConfig, policy: PolicyConfig) -> None:
         raise ConfigError(f"{where}.required is true but no command is configured")
     if stage.name in TEST_STAGES and stage.required and not stage.commands:
         raise ConfigError(f"{where}.required is true but no command is configured")
-    if stage.name == "coverage" and stage.min_percent is not None and not stage.commands:
-        raise ConfigError(f"{where}.min_percent requires a coverage command")
+    # `stages.coverage.min_percent` without a command is valid when a test tier
+    # measures its own coverage; that cross-stage question is answered once every
+    # stage is parsed (see _validate_coverage_source after the stage loop).
     if stage.name == "audit" and stage.required and not stage.commands:
         raise ConfigError(f"{where}.required is true but no audit command is configured")
     if stage.name == "build" and stage.required and not stage.commands:
@@ -1026,6 +1083,7 @@ def load_config(root: Path, config_path: Path | None = None) -> Config:
         if not isinstance(stage_doc, dict):
             raise ConfigError(f"stages.{stage_name} must be a table")
         stages[stage_name] = _parse_stage(stage_name, stage_doc, f"stages.{stage_name}", policy)
+    _validate_coverage_source(stages)
 
     release = _parse_release(_table(doc, "release", "ci.toml"), "release")
 

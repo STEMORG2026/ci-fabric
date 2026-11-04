@@ -231,6 +231,35 @@ fix); requiring the newest heading to equal `project.version` (a project may
 bump the version before writing notes, and a false failure on every development
 run would teach people to ignore the gate).
 
+## D17 — Tier measurement is declared, not scripted
+
+**Decision.** A test stage (`unit integration contract e2e`) may set
+`measure_coverage = true`. When it does, the runner wraps that tier's command
+under coverage (branch config from `pyproject.toml [tool.coverage.run]`),
+exports the parallel data file into this run's artifact directory, and the
+`coverage` stage combines every tier that measured into a single report instead
+of re-running the suite. When no tier measured (standalone `./ci coverage`),
+the coverage stage falls back to its own `command(s)`.
+
+**Why.** Before this, every tier's command had to be written as
+`coverage run --parallel-mode -m pytest ...` with a shared `COVERAGE_FILE`,
+and the coverage stage had to detect the data files with a shell `ls` guard.
+That worked but was fragile: the measurement lived in the command string (easy
+to drop by accident), the threshold stage re-ran the suite when a tier forgot
+to measure, and the parallel data files had to be hand-plumbed into the right
+directory. Declaring intent makes the invariant checkable at config load
+(`min_percent` on a `coverage` stage now requires either a command or a
+measuring tier) and lets the runner own the directory, the env var, and the
+combine step.
+
+**Rejected.** Keeping measurement in the command string (the previous state —
+unverifiable, and the coverage stage could not tell "no data" from "forgot");
+auto-measuring every test tier unconditionally (some tiers, e.g. a fast
+smoke tier, are deliberately excluded from the coverage floor, and silently
+including them would inflate the number); removing the standalone fallback
+command (a repository with no test tiers, or a developer running
+`./ci coverage` alone, still needs a self-contained path).
+
 ## Pending decisions (deliberately open)
 
 - A first-class default signer story (cosign keyless) and countersigning the

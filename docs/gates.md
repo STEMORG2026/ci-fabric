@@ -49,7 +49,7 @@ verify the exact bytes that would be released or deployed, not a byproduct.
 | `<stage>.01…` | command stages | per stage | the command itself; exit code, output tail, and log recorded |
 | `<test>.discovery` | test stages | BLOCKING | a configured test command that matches zero test files is a false pass waiting to happen |
 | `<test>.junit` | test stages | BLOCKING | parses the JUnit report; `min_tests` enforces a real count |
-| `coverage.threshold` | coverage | BLOCKING | coverage is only a gate when you set `min_percent`; `report_path` may be coverage.py XML/JSON, lcov, or a TOTAL-line command |
+| `coverage.threshold` | coverage | BLOCKING | coverage is only a gate when you set `min_percent`; `report_path` may be coverage.py XML/JSON, lcov, or a TOTAL-line command; when test tiers declare `measure_coverage`, the stage combines their run-scoped parallel data files instead of re-running the suite |
 | `security.secrets` | security | per stage | tracked-content secret scan (see security.md) |
 | `security.config` | security | per stage | configuration hygiene, e.g. literal credentials in `[deploy.*].env` |
 | `audit.dependencies.*` | audit | per stage | dependency vulnerability audit |

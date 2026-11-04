@@ -9,10 +9,23 @@ from pathlib import Path
 
 from ..context import Context
 from ..errors import CiError
-from ..gates import GateResult, StageResult, errored, failed, passed, skipped, stage_result
+from ..gates import (
+    GateResult,
+    StageResult,
+    errored,
+    failed,
+    passed,
+    skipped,
+    stage_result,
+    warning,
+)
 from ..runner import run_command
 from ..util import iter_files, matches_any, parse_xml_file, relpath
-from .base import Echo, disabled_gate
+from .base import COVERAGE_DATA_NAME, Echo, disabled_gate
+
+_MODULE_INVOCATION = re.compile(
+    r"^(?P<interpreter>\S+)\s+-m\s+(?P<module>[A-Za-z_][\w.]*)(?P<tail>\s.*)?$"
+)
 
 _DEFAULT_TEST_GLOBS = (
     "**/test_*.py",
@@ -101,6 +114,44 @@ def _looks_like_zero_tests(output: str) -> bool:
     return any(pattern.search(output) for pattern in _ZERO_TEST_PATTERNS)
 
 
+@dataclass(slots=True, frozen=True)
+class CoverageInvocation:
+    """What to run for a tier that declares `measure_coverage = true`."""
+
+    command: str
+    # "wrapped"          - coverage was inserted in front of the runner module
+    # "already-measured" - the command runs coverage itself; leave it alone
+    # "unsupported"      - not an `<interpreter> -m <module>` command
+    mode: str
+
+    @property
+    def measured(self) -> bool:
+        return self.mode in {"wrapped", "already-measured"}
+
+
+def plan_coverage_invocation(command: str) -> CoverageInvocation:
+    """Plan how *command* runs under coverage.
+
+    Only `<interpreter> -m <module> [args]` can be wrapped losslessly, and that
+    is the shape every generated test command has. Refusing anything else is the
+    point: a tier that silently runs unmeasured while claiming to be measured is
+    a false verdict, so the caller fails the gate instead of guessing.
+    """
+    match = _MODULE_INVOCATION.match(command.strip())
+    if match is None:
+        return CoverageInvocation(command=command, mode="unsupported")
+    module = match.group("module")
+    if module == "coverage":
+        return CoverageInvocation(command=command, mode="already-measured")
+    return CoverageInvocation(
+        command=(
+            f"{match.group('interpreter')} -m coverage run --parallel-mode "
+            f"-m {module}{match.group('tail') or ''}"
+        ),
+        mode="wrapped",
+    )
+
+
 def run_test_stage(
     *,
     context: Context,
@@ -156,6 +207,39 @@ def run_test_stage(
         )
 
     gates: list[GateResult] = []
+
+    # `measure_coverage = true` is the whole configuration: the tier exports its
+    # own parallel data file and runs under coverage. A command that cannot be
+    # wrapped fails the tier instead of running unmeasured — "measured" must not
+    # be a claim the pipeline cannot keep.
+    coverage_plans: list[CoverageInvocation] = []
+    if stage.measure_coverage:
+        coverage_plans = [plan_coverage_invocation(context.render(raw)) for raw in stage.commands]
+        unsupported = [plan for plan in coverage_plans if not plan.measured]
+        if unsupported:
+            gates.append(
+                failed(
+                    f"{name}.coverage",
+                    name,
+                    "coverage measurement",
+                    required=stage.required,
+                    summary=(
+                        f"cannot measure `{unsupported[0].command}`: measure_coverage wraps "
+                        "`<interpreter> -m <module>` commands only"
+                    ),
+                    details={
+                        "unsupported": [plan.command for plan in unsupported],
+                        "commands": list(stage.commands),
+                    },
+                    remediation=(
+                        "Run the command through coverage yourself (`{python} -m coverage run "
+                        "--parallel-mode ...`) and drop measure_coverage, or configure the test "
+                        "command as `{python} -m <runner> ...`."
+                    ),
+                )
+            )
+            return stage_result(name, gates, duration_seconds=time.monotonic() - started)
+
     discovered = discover_tests(context.root, stage.test_globs)
     minimum = stage.min_test_files
     if (
@@ -200,8 +284,15 @@ def run_test_stage(
 
     cwd = context.stage_cwd(stage)
     environment = context.stage_env(stage)
+    if stage.measure_coverage and "COVERAGE_FILE" not in stage.env:
+        # One data file per run, inside the run's artifact directory; the
+        # coverage stage globs exactly this name. An explicit COVERAGE_FILE in
+        # [stages.<tier>].env still wins — configuration is never overridden.
+        environment["COVERAGE_FILE"] = str(context.paths.artifacts_dir / COVERAGE_DATA_NAME)
     for index, raw_command in enumerate(stage.commands, start=1):
         command = context.render(raw_command)
+        if coverage_plans:
+            command = coverage_plans[index - 1].command
         run_ok = True
         run_failure_index: int | None = None
         passed_runs = 0
@@ -306,6 +397,45 @@ def run_test_stage(
                 )
             )
             break
+
+    if stage.measure_coverage:
+        data_file = context.paths.artifacts_dir / COVERAGE_DATA_NAME
+        relative_data = relpath(data_file, context.root)
+        consumer = context.config.stage("coverage")
+        details = {
+            "mode": coverage_plans[0].mode,
+            "commands": len(coverage_plans),
+            "data_file": relative_data,
+        }
+        if consumer is None or not consumer.enabled:
+            gates.append(
+                warning(
+                    f"{name}.coverage",
+                    name,
+                    "coverage measurement",
+                    summary=("measured, but no coverage stage consumes the data"),
+                    details=details,
+                    remediation=(
+                        "Configure [stages.coverage] (it combines the tier data into the "
+                        "report the threshold uses), or drop measure_coverage."
+                    ),
+                )
+            )
+        else:
+            gates.append(
+                passed(
+                    f"{name}.coverage",
+                    name,
+                    "coverage measurement",
+                    required=False,
+                    summary=(
+                        f"command wrapped under coverage; parallel data file {relative_data}"
+                        if coverage_plans[0].mode == "wrapped"
+                        else "command already measures coverage; left unchanged"
+                    ),
+                    details=details,
+                )
+            )
 
     if stage.junit_path:
         junit_path = context.root / context.render(stage.junit_path)

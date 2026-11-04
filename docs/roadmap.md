@@ -36,10 +36,10 @@ makes the local pipeline more rigorous comes in.
 - ~~**Stateful-system checks.**~~ ~Done in 0.7.0 (decisions.md D14):
   `[deploy.<env>].invariants` block activation like health failures —
   auto-rollback included — and `./ci smoke` re-proves them on every run.~
-- **Coverage measurement ergonomics.** ~In daily use here:~ test tiers
-  measure themselves into per-run parallel data files and the coverage stage
-  combines them (see this repository's `ci.toml`); productizing that pattern
-  (`stages.<tier>.measure_coverage = true`) is the remaining polish.
+- ~~**Coverage measurement ergonomics.**~~ ~Done in 0.8.0 (decisions.md D17):~ test tiers
+  declare `measure_coverage = true` and run under coverage themselves; the coverage
+  stage combines their run-scoped parallel data files instead of re-running the
+  suite. No `coverage run` wrapper in the tier command.
 - ~~**Baseline-gated security adoption.**~~ ~Done in 0.5.0, natively, for the
   secret scan (decisions.md D12): committed fingerprint baseline,
   `--update-baseline` one-command adoption, stale-entry reporting. The
@@ -75,7 +75,7 @@ makes the local pipeline more rigorous comes in.
 ## Status honesty
 
 This project is **Beta**: the gate model, packaging, release, deploy, and
-rollback paths are implemented and self-tested (216 tests across four tiers,
+rollback paths are implemented and self-tested (229 tests across four tiers,
 full pipeline green on this repository), but there is no default signer story
 (signing is a bring-your-own command contract) and hosted-CI execution is
 deliberately deferred. Treat it as a strong local CI with an explicit,
