@@ -10,6 +10,7 @@ import pytest
 
 from ci_fabric.errors import CiError
 from ci_fabric.oci import build_image, layout_digest, verify_layout
+from ci_fabric.util import extract_archive
 
 EPOCH = 1_793_777_169
 
@@ -86,9 +87,9 @@ def test_the_archive_unpacks_into_the_layout(tmp_path: Path) -> None:
     app = make_app(tmp_path)
     image = build_image(app_dir=app, output_dir=tmp_path / "out", tag="t:1", epoch=EPOCH)
     unpacked = tmp_path / "unpacked"
-    unpacked.mkdir()
-    with tarfile.open(image.archive) as tar:
-        tar.extractall(unpacked, filter="data")
+    # The project's own extractor: traversal-safe on every supported Python,
+    # unlike tarfile's filter= parameter (3.12+/3.11.4+ only, CF-01).
+    extract_archive(image.archive, unpacked)
     assert (unpacked / "oci-layout").is_file()
     assert (unpacked / "index.json").is_file()
     assert layout_digest(unpacked) == image.manifest_digest
