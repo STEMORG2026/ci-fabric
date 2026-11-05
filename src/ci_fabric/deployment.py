@@ -30,6 +30,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any
 
+from . import __version__
 from .config import Config, DeployEnvConfig, expand_env_value
 from .context import Context
 from .errors import CiError
@@ -56,7 +57,7 @@ from .util import (
     write_json,
 )
 
-USER_AGENT = "ci-fabric/0.1.0"
+USER_AGENT = f"ci-fabric/{__version__}"
 _POLL_INTERVAL = 0.25
 _BODY_LIMIT = 256 * 1024
 
