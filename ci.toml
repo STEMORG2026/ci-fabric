@@ -120,7 +120,11 @@ env = { COVERAGE_FILE = "{artifacts}/coverage.data", CI_FABRIC_COVERAGE = "1" }
 commands = [
   "{python} -m coverage run --parallel-mode -m pytest -q tests && {python} -m coverage combine {artifacts} && {python} -m coverage report",
 ]
-min_percent = 74
+# Ratcheted from 74 to 78 on 2026-11-05: the full suite measures ~80.5% line
+# coverage, so 78 leaves a small, honest buffer for platform-specific branches
+# while making a real regression fail. Raise it only when the measured rate
+# sustains the new floor; never lower it to make a red run green.
+min_percent = 78
 
 [stages.security]
 required = true
