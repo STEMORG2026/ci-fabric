@@ -12,8 +12,12 @@ change is not done.
 ```
 
 The development toolchain is hash-pinned in `requirements-dev.lock`
-(regenerate with `uv pip compile --generate-hashes`). Do not add unpinned
-dependencies.
+(regenerate with
+`uv pip compile --generate-hashes --no-strip-extras --python-version 3.11 requirements-dev.in -o requirements-dev.lock`).
+`--no-strip-extras` keeps extra markers such as `coverage[toml]` pinned
+verbatim, which older pip releases require in `--require-hashes` mode;
+`scripts/bootstrap.sh` additionally installs the lock's pinned pip first.
+Do not add unpinned dependencies.
 
 ## The rules
 
