@@ -28,12 +28,7 @@ jobs:
         env:
           # Env indirection: ref_name is never interpolated into the script.
           TAG: ${{ github.ref_name }}
-        run: |
-          version="v$(cat VERSION)"
-          if [ "$TAG" != "$version" ]; then
-            echo "tag $TAG does not match VERSION ($version); refusing to release" >&2
-            exit 1
-          fi
+        run: sh scripts/check-release-tag.sh
       - name: bootstrap toolchain
         run: ./scripts/bootstrap.sh
       - name: create signed release
@@ -54,9 +49,12 @@ jobs:
           gh release create "$TAG" \
             --title "ci-fabric $version" \
             --notes-file "$bundle/RELEASE_NOTES.md" \
+            --verify-tag \
             "$bundle"/*
       - name: upload release bundle
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-${{ github.ref_name }}
           path: .localci/releases/
+          if-no-files-found: ignore
