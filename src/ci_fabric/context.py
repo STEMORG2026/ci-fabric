@@ -362,6 +362,12 @@ def _base_environment(root: Path, clean_env: bool) -> dict[str, str]:
             "SSH_AUTH_SOCK",
             "XDG_CACHE_HOME",
             "VIRTUAL_ENV",
+            # Ambient OIDC identity for cosign-keyless release signing:
+            # ephemeral, scoped credentials (like SSH_AUTH_SOCK), required
+            # for the signer subprocess to obtain a token in hosted CI.
+            "ACTIONS_ID_TOKEN_REQUEST_URL",
+            "ACTIONS_ID_TOKEN_REQUEST_TOKEN",
+            "SIGSTORE_ID_TOKEN",
         }
         env = {key: value for key, value in os.environ.items() if key in allowed}
     else:

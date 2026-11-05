@@ -155,3 +155,35 @@ def test_cosign_keyless_mismatched_identity_fails_release(tmp_path: Path) -> Non
             create_release(context)
     finally:
         _teardown_env(old_path)
+
+
+def test_cosign_keyless_identity_from_environment_is_recorded(tmp_path: Path) -> None:
+    # Hosted releases supply the per-tag identity via COSIGN_CERTIFICATE_IDENTITY
+    # (a static ci.toml identity cannot match every v* tag). release.json must
+    # record the RESOLVED identity, not the (absent) config value, so the
+    # bundle's metadata is honest and deploy-time verification is traceable.
+    _, old_path = _setup_env(tmp_path)
+    os.environ["COSIGN_CERTIFICATE_IDENTITY"] = "tester@example.com"
+    os.environ["COSIGN_CERTIFICATE_OIDC_ISSUER"] = "https://issuer.example"
+    try:
+        root = make_repo(
+            tmp_path,
+            files={
+                "app/index.html": "<html><body>v1</body></html>\n",
+                "RELEASE_NOTES.md": "# Notes\n",
+            },
+            sections=list(static_deploy_sections()),
+            release='changelog = "RELEASE_NOTES.md"\nsigner = "cosign-keyless"\n',
+        )
+        _, context = run_fixture_pipeline(root, command="ci")
+        create_release(context)
+        bundle_dir = root / ".localci" / "releases" / "1.0.0"
+        metadata = json.loads((bundle_dir / "release.json").read_text())
+        assert metadata["signer"] == "cosign-keyless"
+        assert metadata["signing_identity"] == "tester@example.com"
+        assert metadata["signing_issuer"] == "https://issuer.example"
+        assert (bundle_dir / "SHA256SUMS.sigstore.json").is_file()
+    finally:
+        os.environ.pop("COSIGN_CERTIFICATE_IDENTITY", None)
+        os.environ.pop("COSIGN_CERTIFICATE_OIDC_ISSUER", None)
+        _teardown_env(old_path)

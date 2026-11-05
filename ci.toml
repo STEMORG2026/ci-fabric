@@ -161,6 +161,13 @@ require_notes = true
 changelog = "RELEASE_NOTES.md"
 tag_prefix = "v"
 output_dir = ".localci/releases"
+# Hosted releases are signed with cosign keyless (GitHub Actions OIDC).
+# The certificate identity is per-tag, so the workflow supplies it via
+# COSIGN_CERTIFICATE_IDENTITY; the issuer is stable. A local `./ci release`
+# without an ambient OIDC identity aborts by design — releases are cut via
+# the workflow (see docs/operations.md, "Hosted CI").
+signer = "cosign-keyless"
+signing_issuer = "https://token.actions.githubusercontent.com"
 
 [hooks]
 pre_commit_stages = ["repository", "format", "security"]

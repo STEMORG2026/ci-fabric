@@ -145,12 +145,16 @@ on success works identically.
 
 ## Honest limitations
 
-- **Default signer available (opt-in): cosign keyless.** Set
-  `[release].signer = "cosign-keyless"` with `signing_identity` and
-  `signing_issuer`; ci-fabric invokes `cosign sign-blob --bundle` /
-  `cosign verify-blob`, manages no keys, and records the identity and bundle
-  in `release.json`. Signing needs an ambient OIDC identity (GitHub Actions,
-  Google, `SIGSTORE_ID_TOKEN`, …); without one, cosign fails and the release
+- **Default signer (opt-in; enabled for this repository's hosted releases):
+  cosign keyless.** Set `[release].signer = "cosign-keyless"`; the identity
+  and issuer come from `signing_identity`/`signing_issuer` or, when absent,
+  from `COSIGN_CERTIFICATE_IDENTITY`/`COSIGN_CERTIFICATE_OIDC_ISSUER` — the
+  release workflow supplies the per-tag identity this way, and the resolved
+  values are recorded in `release.json`. ci-fabric invokes
+  `cosign sign-blob --bundle` / `cosign verify-blob` and manages no keys.
+  Signing needs an ambient OIDC identity (GitHub Actions, Google,
+  `SIGSTORE_ID_TOKEN`, …); `--clean-env` preserves the OIDC request variables
+  for exactly this purpose. Without an identity, cosign fails and the release
   aborts rather than shipping unsigned. Unsigned configurations are still
   recorded honestly (`"none (no signer configured)"`).
 - **Provenance is not independently authenticated.** `provenance.json` and
