@@ -53,7 +53,12 @@ fix_commands = ["{python} -m ruff format src tests"]
 
 [stages.lint]
 required = true
-commands = ["{python} -m ruff check src tests"]
+commands = [
+  "{python} -m ruff check src tests",
+  # SHA-pin shape gate: external action refs must be full commit SHAs.
+  # Dependabot (.github/dependabot.yml) keeps the pins current.
+  "sh scripts/check-action-pins.sh",
+]
 
 [stages.typecheck]
 required = true

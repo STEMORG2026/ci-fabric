@@ -1,0 +1,17 @@
+# SHA pins are only half the discipline: without automated updates they
+# silently rot (the 2026-11-05 audit found v4/v5 pins while v7 was current).
+# Dependabot keeps the pinned actions current; scripts/check-action-pins.sh
+# gates the pin shape on every lint run. Dev-Python toolchain updates remain
+# a reviewed maintainer step (requirements-dev.lock is hash-pinned).
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "ci"
+    groups:
+      github-actions:
+        patterns: ["*"]
+    labels: ["dependencies"]
