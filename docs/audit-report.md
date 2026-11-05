@@ -28,11 +28,16 @@ Auditors: internet best-practice review + Universal Software Auditor (USA) v0.1,
 - Pinned all GitHub Actions to commit SHAs (`pin-actions.mjs`); `--check`
   passes.
 - Added `id-token: write` to the release workflow for cosign keyless OIDC.
-- Added `.python-version`, `.editorconfig`, `AGENTS.md`, `docs/architecture.md`.
-- Recorded placeholder raw-interpolation risk in `docs/security.md`.
-- Suppressed 30+ USA findings in `.usa.yaml` with explicit reasons (no
-  authentication surface, no runtime dependencies, single maintainer, etc.).
+- Hardened hosted-CI templates: concurrency groups, `cancel-in-progress`,
+  per-job `timeout-minutes`.
+- Added `.python-version`, `.editorconfig`, `AGENTS.md`, `docs/architecture.md`,
+  `docs/plans/god-file-refactor.md`.
+- Recorded placeholder raw-interpolation risk in `docs/security.md`; added
+  `{name}_quoted` shell-safe variants.
+- Added `./ci notes` composer (closes the last pending decision).
+- Suppressed 30+ USA findings in `.usa.yaml` with explicit reasons.
 - Deferred `PY-007` (shell=True) and `PY-004` (bare except) with evidence.
+- Recorded god-file refactor as plan D22, not executed.
 
 ## Real findings and their disposition
 
@@ -41,9 +46,10 @@ Auditors: internet best-practice review + Universal Software Auditor (USA) v0.1,
   `{root}`, etc. into shell commands verbatim.
 - **Risk**: in hosted CI, branch names can be attacker-controlled; a branch
   named `x; rm -rf .` interpolated into an unquoted command would execute.
-- **Disposition**: documented in `docs/security.md` as a limitation; users must
-  quote placeholders. Auto-quoting was rejected because it breaks path
-  concatenation (`{root}/sub`). A future `{branch_quoted}` variant is possible.
+- **Disposition**: documented in `docs/security.md` as a limitation; `{name}_quoted`
+  variants (e.g. `{branch_quoted}`) are now provided via `shlex.quote` for use
+  in untrusted contexts. Auto-quoting all placeholders was rejected because it
+  breaks path concatenation (`{root}/sub`).
 
 ### 2. Four modules exceed 800 lines (USA ARCH-003)
 - `cli.py`, `config.py`, `deployment.py`, `supplychain.py`.

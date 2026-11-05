@@ -392,3 +392,17 @@ established this rule).
   notes accumulate across commits and are cleared by `./ci notes --clear`
   after a release. D16's gate still catches a stale/missing Unreleased block;
   the composer prevents the empty-notes failure mode.
+
+## D22 — God-file refactor is planned, not executed
+
+**Decision.** The four modules over 800 lines (cli, config, deployment,
+supplychain) are left intact in this release. A concrete split plan is
+recorded in `docs/plans/god-file-refactor.md`.
+
+**Why.** They are cohesive single-responsibility modules; the size is a smell,
+not a correctness defect. Splitting is a refactor with real risk (20+ import
+sites, 252 tests) and no behavioral payoff. The owner freezes verified-green
+systems: improvements become plans/ADRs, not unprompted work.
+
+**Rejected.** Splitting now (risk of breaking the green pipeline for a lint
+score); ignoring the smell entirely (tracked as ARCH-003 in `.usa.yaml`).
