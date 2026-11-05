@@ -386,10 +386,9 @@ established this rule).
 
 ## Pending decisions (deliberately open)
 
-- A mechanical `./ci notes --add <version>` command that prepends the new
-  section to the changelog. D16's gate now *catches* the error class; a command
-  that composes the section would *prevent* it. Not built yet: it is new
-  command surface (parser, reference regeneration, tests) for a step that
-  currently costs one hand edit per release, and the failure it prevents is now
-  a blocking gate failure rather than a silent shipped defect. Revisit if a
-  second project adopts the same release-notes convention.
+- ~~A mechanical `./ci notes --add <version>` command that prepends the new
+  section to the changelog.~~ **Built** as `./ci notes` (add/show/clear) in
+  0.13.1-dev: composes an `## Unreleased` section in `RELEASE_NOTES.md` so
+  notes accumulate across commits and are cleared by `./ci notes --clear`
+  after a release. D16's gate still catches a stale/missing Unreleased block;
+  the composer prevents the empty-notes failure mode.

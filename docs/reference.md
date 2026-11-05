@@ -71,6 +71,7 @@ gates verify the exact bytes that would be released or deployed.
 | `./ci clean` | remove old run state |
 | `./ci run` | run an explicit stage selection |
 | `./ci docs` | regenerate docs/reference.md from the live code |
+| `./ci notes` | compose release notes incrementally |
 | `./ci version` | print the tool version |
 
 ## Profiles
@@ -89,7 +90,7 @@ Required stages are BLOCKING wherever they are configured; the
 
 Available in commands and path-valued configuration keys:
 
-`{app}`, `{artifacts}`, `{base_url}`, `{branch}`, `{deploy_id}`, `{env}`, `{logs}`, `{project}`, `{python}`, `{release_dir}`, `{reports}`, `{revision}`, `{root}`, `{run_id}`, `{short_revision}`, `{source_date_epoch}`, `{state}`, `{tmp}`, `{venv_python}`, `{version}`
+`{app}`, `{app_quoted}`, `{artifacts}`, `{artifacts_quoted}`, `{base_url}`, `{base_url_quoted}`, `{branch}`, `{branch_quoted}`, `{deploy_id}`, `{deploy_id_quoted}`, `{env}`, `{env_quoted}`, `{logs}`, `{logs_quoted}`, `{project}`, `{project_quoted}`, `{python}`, `{python_quoted}`, `{release_dir}`, `{release_dir_quoted}`, `{reports}`, `{reports_quoted}`, `{revision}`, `{revision_quoted}`, `{root}`, `{root_quoted}`, `{run_id}`, `{run_id_quoted}`, `{short_revision}`, `{short_revision_quoted}`, `{source_date_epoch}`, `{source_date_epoch_quoted}`, `{state}`, `{state_quoted}`, `{tmp}`, `{tmp_quoted}`, `{venv_python}`, `{venv_python_quoted}`, `{version}`, `{version_quoted}`
 
 `${NAME}` expands stage/deploy environment variables instead; a
 missing variable is a hard error, never an empty string.

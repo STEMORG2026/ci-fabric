@@ -6,6 +6,7 @@ import os
 import platform
 import re
 import secrets
+import shlex
 import shutil
 import subprocess
 import sys
@@ -206,7 +207,12 @@ class Context:
             "app": str(self.metadata.get("app_dir", "")),
             "base_url": str(self.metadata.get("base_url", "")),
         }
+
         mapping.update(self.extra_placeholders)
+        # Safe variants: {key}_quoted is shell-quoted for use in untrusted contexts
+        # (e.g. branch names in hosted CI). See docs/security.md.
+        for key, value in list(mapping.items()):
+            mapping[f"{key}_quoted"] = shlex.quote(value)
         return mapping
 
     def environment_snapshot(self) -> dict[str, Any]:

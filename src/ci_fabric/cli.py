@@ -788,6 +788,32 @@ def _cmd_docs(args: argparse.Namespace, root: Path, config: Config) -> int:
     return exit_code
 
 
+def _cmd_notes(args: argparse.Namespace, root: Path, config: Config) -> int:
+    from .notes import add_note, clear_unreleased, show
+
+    notes_path = root / (config.release.changelog or "RELEASE_NOTES.md")
+    if getattr(args, "show", False):
+        text = show(notes_path)
+        print(text if text else "(no release notes file)")
+        return 0
+    if getattr(args, "clear", False):
+        if clear_unreleased(notes_path):
+            print(f"cleared Unreleased section in {notes_path}")
+        else:
+            print("no Unreleased section to clear")
+        return 0
+    message = getattr(args, "add", None)
+    if message:
+        section = getattr(args, "section", "Added") or "Added"
+        add_note(notes_path, message, section=section)
+        print(f"added note to {notes_path} ({section})")
+        return 0
+    # default: show
+    text = show(notes_path)
+    print(text if text else "(no release notes file)")
+    return 0
+
+
 def _update_secrets_baseline(args: argparse.Namespace, root: Path, config: Config) -> int:
     """Record the current secret-scan findings as accepted legacy debt.
 
@@ -996,6 +1022,17 @@ def _build_parser() -> argparse.ArgumentParser:
     docs = sub.add_parser("docs", help="regenerate docs/reference.md from the live code")
     docs.add_argument("--check", action="store_true", help="fail if stale; do not write")
     docs.set_defaults(handler=_cmd_docs)
+
+    notes = sub.add_parser("notes", help="compose release notes incrementally")
+    notes.add_argument("--add", metavar="TEXT", help="add a note bullet")
+    notes.add_argument(
+        "--section",
+        default="Added",
+        choices=["Added", "Changed", "Fixed", "Removed", "Deprecated", "Security"],
+    )
+    notes.add_argument("--show", action="store_true", help="print current notes")
+    notes.add_argument("--clear", action="store_true", help="remove the Unreleased section")
+    notes.set_defaults(handler=_cmd_notes)
 
     version = sub.add_parser("version", help="print the tool version")
     version.set_defaults(handler=_cmd_version)

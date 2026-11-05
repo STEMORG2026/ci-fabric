@@ -90,13 +90,15 @@ Auditors: internet best-practice review + Universal Software Auditor (USA) v0.1,
 
 ## Items not addressed (intentional gaps, tracked in roadmap)
 
-- `./ci notes --add` composer (one hand edit per release).
 - Hosted-CI templates need review/adaptation to your runner.
 - cosign-keyless needs an ambient OIDC identity; without one, signing aborts
   rather than falling back to unsigned.
 - Local runs are not hermetic; `--clean-env` raises the bar but is not a
   secure-build enclave.
 - Mutation testing and SAST are out of scope for current maturity.
+- God-file refactor (cli/config/deployment/supplychain >800 lines) is recorded
+  as a plan, not executed: splitting is a refactor risk on a verified-green
+  system; tracked as deferred in `.usa.yaml` (ARCH-003).
 
 ## Remaining USA open items
 

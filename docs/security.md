@@ -168,8 +168,9 @@ on success works identically.
   A value containing shell metacharacters (an unusual branch name, for
   example) would be interpreted by the shell. ci.toml is trusted code and the
   repository is the trust boundary, but in a hosted-CI context branch names
-  can be attacker-controlled: quote placeholders with `shlex`-style escaping
-  in any command that consumes them, or avoid interpolating them.
+  can be attacker-controlled: use the `{name}_quoted` variant (e.g.
+  `{branch_quoted}`) which is shell-quoted via `shlex.quote`, or avoid
+  interpolating them.
 - **The secret scanner is pattern-based.** It finds credential-shaped strings;
   it cannot prove a value is or is not a live credential. Findings must be
   adjudicated by humans; allowlists are auditable configuration.

@@ -67,6 +67,7 @@ AUX_COMMAND_HELP: tuple[tuple[str, str], ...] = (
     ("clean", "remove old run state"),
     ("run", "run an explicit stage selection"),
     ("docs", "regenerate docs/reference.md from the live code"),
+    ("notes", "compose release notes incrementally"),
     ("version", "print the tool version"),
 )
 
