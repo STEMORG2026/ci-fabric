@@ -208,3 +208,37 @@ def test_restore_revalidates_even_when_lookup_is_bypassed(tmp_path: Path) -> Non
     with pytest.raises(CiError):
         buildcache.restore(entry, context)
     assert (root / "VERSION").read_text(encoding="utf-8") == before
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [".ci/results/latest.json", ".localci/deploy/current.json", ".git/config"],
+)
+def test_a_manifest_targeting_ci_or_git_state_is_a_miss(tmp_path: Path, relative: str) -> None:
+    # Run evidence, deploy state and Git configuration are never build
+    # products, even though they are untracked/ignored.
+    root = make_cached_repo(tmp_path)
+    key = _planted_entry(root, [{"path": relative}])
+    context = SimpleNamespace(root=root, git=SimpleNamespace(revision="deadbeef"))
+    assert buildcache.lookup(context, key) is None
+
+
+def test_a_symlink_alias_to_a_tracked_file_is_a_miss(tmp_path: Path) -> None:
+    # Phase 0 checked the literal manifest path against Git's tracked set;
+    # an untracked symlink directory could alias a tracked file and bypass
+    # that check. Resolve/symlink-check the destination before restoring.
+    root = make_cached_repo(tmp_path)
+    (root / "real").mkdir()
+    tracked = root / "real" / "tracked.txt"
+    tracked.write_text("ORIGINAL\n", encoding="utf-8")
+    commit_all(root, "track target")
+    (root / "link").symlink_to(root / "real", target_is_directory=True)
+    key = _planted_entry(root, [{"path": "link/tracked.txt"}])
+    context = SimpleNamespace(root=root, git=SimpleNamespace(revision="deadbeef"))
+    assert buildcache.lookup(context, key) is None
+    entry_dir = buildcache.cache_root(context) / key
+    manifest = json.loads((entry_dir / "cache.json").read_text(encoding="utf-8"))
+    entry = buildcache.CacheEntry(key=key, manifest=manifest, directory=entry_dir)
+    with pytest.raises(CiError):
+        buildcache.restore(entry, context)
+    assert tracked.read_text(encoding="utf-8") == "ORIGINAL\n"

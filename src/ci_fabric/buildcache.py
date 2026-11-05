@@ -15,8 +15,9 @@ stored: a build of a tree nobody can name again is not worth keeping.
 Entries store the declared build outputs plus their SHA-256 digests; a
 restore re-verifies every digest before touching the working tree, so a
 corrupted cache is a miss, never a wrong artifact. Manifest paths are
-contained: traversal, absolute paths and targets tracked in Git are
-rejected as corruption (a miss), never served or restored.
+contained: traversal, absolute paths, symlinked destinations, Git/CI state
+directories and targets tracked in Git are rejected as corruption (a miss),
+never served or restored.
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ from __future__ import annotations
 import hashlib
 import shutil
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .context import Context
@@ -67,6 +68,39 @@ def cache_key(context: Context, rendered_commands: list[str]) -> str:
     return digest.hexdigest()
 
 
+def _destination_problem(root: Path, relative: str, tracked: set[str]) -> str | None:
+    """Why a cache output must not be restored to *relative*, or None.
+
+    The manifest is untrusted local state. Besides traversal, reject the
+    repository's own evidence/state directories and symlink aliases: an
+    untracked symlink directory must not smuggle a write onto a tracked file,
+    and `.ci`, `.localci` and `.git` are never build products.
+    """
+    try:
+        safe_relative_path(relative)
+    except ConfigError:
+        return "not a repository-relative path"
+    destination = root / relative
+    if not is_within(destination, root):
+        return "outside the repository"
+    current = root
+    for part in PurePosixPath(relative).parts:
+        current = current / part
+        if current.is_symlink():
+            return "a symlinked destination"
+    resolved = destination.resolve()
+    for protected in (root / ".git", root / ".ci", root / ".localci"):
+        if is_within(resolved, protected):
+            return f"{protected.name} state (never a build product)"
+    try:
+        resolved_relative = resolved.relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return "outside the repository"
+    if resolved_relative in tracked:
+        return "a tracked file (a source, never a build product)"
+    return None
+
+
 def lookup(context: Context, key: str, kind: str = "build") -> CacheEntry | None:
     """Return the entry for `key`, or None when it is absent or corrupt.
 
@@ -100,11 +134,7 @@ def lookup(context: Context, key: str, kind: str = "build") -> CacheEntry | None
         if not isinstance(entry, dict):
             return None
         relative = str(entry.get("path", ""))
-        try:
-            safe_relative_path(relative)
-        except ConfigError:
-            return None
-        if relative in tracked:
+        if _destination_problem(context.root, relative, tracked) is not None:
             return None
         path = outputs_dir / relative
         if not is_within(path, outputs_dir):
@@ -126,27 +156,18 @@ def restore(entry: CacheEntry, context: Context) -> list[str]:
     tracked = set(tracked_files(context.root))
     for item in entry.outputs:
         relative = str(item.get("path", ""))
-        try:
-            safe_relative_path(relative)
-        except ConfigError as exc:
+        problem = _destination_problem(context.root, relative, tracked)
+        if problem is not None:
             raise CiError(
-                f"cache entry path is not repository-relative: {relative!r}",
-                remediation="Delete .localci/cache/ and rebuild; the cache is corrupt.",
-            ) from exc
-        source = outputs_dir / relative
-        destination = context.root / relative
-        if not is_within(source, outputs_dir) or not is_within(destination, context.root):
-            raise CiError(
-                f"cache entry escapes its directory or the repository: {relative!r}",
+                f"cache entry would overwrite {problem}: {relative!r}",
                 remediation="Delete .localci/cache/ and rebuild; the cache is corrupt.",
             )
-        if relative in tracked:
+        source = outputs_dir / relative
+        destination = context.root / relative
+        if not is_within(source, outputs_dir):
             raise CiError(
-                f"cache entry would overwrite a tracked file: {relative!r}",
-                remediation=(
-                    "Committed files are sources, never build products. "
-                    "Delete .localci/cache/ and rebuild."
-                ),
+                f"cache entry escapes its directory: {relative!r}",
+                remediation="Delete .localci/cache/ and rebuild; the cache is corrupt.",
             )
         if destination.is_dir():
             shutil.rmtree(destination)
