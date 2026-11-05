@@ -1,6 +1,7 @@
 # Plan: audit remediation, November 2026
 
-Status: **proposed, awaiting approval**
+Status: **Phase 0 executed 2026-11-05** (commits `bd35327`, `4518d10`,
+`7a440a4`, `a4b29ba`); Phases 1–3 proposed, awaiting approval.
 Input: [../independent-audit-2026-11-05.md](../independent-audit-2026-11-05.md) (findings CF-01…CF-29)
 Branch: `arena/d84ce058-ci-fabric` (all work lands here; one logical change per commit)
 
@@ -21,7 +22,7 @@ Branch: `arena/d84ce058-ci-fabric` (all work lands here; one logical change per 
 These restore the project's core promise ("green on any supported machine")
 and close the only PoC'd finding.
 
-### 0.1 CF-01 — Make the suite pass on Python 3.11.0–3.11.3
+### 0.1 CF-01 — Make the suite pass on Python 3.11.0–3.11.3 ✅ (`bd35327`)
 - **Change:** `tests/unit/test_oci_image.py` — replace the bare
   `tar.extractall(..., filter="data")` with the project's own
   `ci_fabric.util.extract_archive` (already traversal-safe, no version
@@ -33,7 +34,7 @@ and close the only PoC'd finding.
   rest.
 - **Effort:** S · **Risk:** low (test-only).
 
-### 0.2 CF-02 — Bootstrap installs the pinned pip first
+### 0.2 CF-02 — Bootstrap installs the pinned pip first ✅ (`4518d10`)
 - **Change:** `scripts/bootstrap.sh` — extract the `pip==…` stanza from
   `requirements-dev.lock` and `pip install --require-hashes` it **before**
   the full lock install; keep the rest unchanged. Add a comment explaining
@@ -45,7 +46,7 @@ and close the only PoC'd finding.
 - **Verify:** fresh-venv bootstrap on this sandbox (the exact failing case).
 - **Effort:** S · **Risk:** low.
 
-### 0.3 CF-03 — Contain cache restore paths (security hardening)
+### 0.3 CF-03 — Contain cache restore paths (security hardening) ✅ (`7a440a4`)
 - **Change:** `src/ci_fabric/buildcache.py` —
   - in `lookup()`: reject entries whose `path` fails `safe_relative_path()`
     or whose resolved source escapes `entry.directory / "outputs"`
@@ -62,7 +63,7 @@ and close the only PoC'd finding.
 - **Verify:** `./ci unit && ./ci integration`, then `./ci ci`.
 - **Effort:** M · **Risk:** low (opt-in feature, miss-on-invalid is safe).
 
-### 0.4 CF-04 — Semver-aware release ordering
+### 0.4 CF-04 — Semver-aware release ordering ✅ (`a4b29ba`)
 - **Change:** `src/ci_fabric/util.py::version_key` — prerelease sorts before
   the final release (e.g. key `(major, minor, patch, 0, prerelease_parts)`
   vs `(major, minor, patch, 1)`); build metadata ignored per semver.
@@ -70,8 +71,11 @@ and close the only PoC'd finding.
   `1.0.0-rc2 > 1.0.0-rc1`, `1.9.0 < 1.10.0`.
 - **Effort:** S · **Risk:** low (local release listing only).
 
-**Phase 0 exit:** `./ci ci` green on 3.11.2; PoC regression tests in place;
-commit count ≈ 4.
+**Phase 0 exit: ✅ achieved 2026-11-05.** `./ci ci` → RESULT PASS on Python
+3.11.2, clean tree: 57 gates pass, 0 fail, 0 warn; coverage 80.50% vs 74%
+floor; 261 tests (5 new regression tests, each watched fail before its fix).
+Fresh bootstrap from system pip 23.0.1 verified; the audit's cache-traversal
+PoC re-run and neutralized (lookup returns a miss, outside file untouched).
 
 ## Phase 1 — Supply chain & hosted CI modernization (~1–2 days)
 
@@ -153,8 +157,8 @@ All doc fixes land in one or two commits; the links/versions/generated gates
 re-verify them.
 
 ### 2.1 CF-12…CF-18 — Doc drift sweep
-- `docs/testing.md`: tier counts → 144/87/18/7 (256), measured coverage →
-  the post-Phase-1 number.
+- `docs/testing.md`: tier counts → 145/91/18/7 (261 after Phase 0; re-measure
+  at edit time), measured coverage → the post-Phase-1 number.
 - `docs/roadmap.md`, `docs/decisions.md` (D22), `docs/plans/god-file-refactor.md`:
   252 → 256; god-file line counts → 1943/1246/1093/909 (re-measure at edit).
 - `docs/decisions.md`: mark **D9 superseded** by the 0.13.0 hosted-adapter
