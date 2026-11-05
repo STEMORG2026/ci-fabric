@@ -78,7 +78,7 @@ makes the local pipeline more rigorous comes in.
 ## Status honesty
 
 This project is **Beta**: the gate model, packaging, release, deploy, and
-rollback paths are implemented and self-tested (249 tests across four tiers,
+rollback paths are implemented and self-tested (252 tests across four tiers,
 full pipeline green on this repository), but signing is a bring-your-own
 command contract with an opt-in cosign-keyless default signer (see security.md),
 and hosted-CI execution is deliberately deferred. Treat it as a strong local CI with an explicit,
