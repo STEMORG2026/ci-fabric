@@ -496,14 +496,30 @@ def hash_stream(handle: BinaryIO) -> str:
     return digest.hexdigest()
 
 
-def version_key(value: str) -> tuple[int, ...]:
-    """Best-effort numeric ordering for local release selection."""
-    parts: list[int] = []
-    for piece in re.split(r"[.+-]", value.lstrip("vV")):
-        match = re.match(r"(\d+)", piece)
-        if match:
-            parts.append(int(match.group(1)))
-    return tuple(parts)
+def version_key(value: str) -> tuple[tuple[int, ...], int, tuple[tuple[int, int, str], ...]]:
+    """Semver-aware ordering for local release selection.
+
+    Release numbers compare numerically (1.9 < 1.10); a prerelease sorts
+    before the final release of the same version (1.0.0-rc1 < 1.0.0);
+    prerelease identifiers follow semver precedence (numeric identifiers
+    compare as integers and rank below alphanumeric ones, which compare
+    lexically); build metadata is ignored. Non-semver shapes degrade to
+    best-effort numeric ordering of their dotted components.
+    """
+    text = value.lstrip("vV").split("+", 1)[0]
+    release, _, prerelease = text.partition("-")
+    numbers = tuple(
+        int(match.group(1)) for piece in release.split(".") if (match := re.match(r"(\d+)", piece))
+    )
+    numbers += (0,) * max(0, 3 - len(numbers))
+    identifiers: list[tuple[int, int, str]] = []
+    if prerelease:
+        for identifier in prerelease.split("."):
+            if identifier.isdigit():
+                identifiers.append((0, int(identifier), ""))
+            else:
+                identifiers.append((1, 0, identifier))
+    return (numbers, 0 if prerelease else 1, tuple(identifiers))
 
 
 def glob_match(relative: str, pattern: str) -> bool:
