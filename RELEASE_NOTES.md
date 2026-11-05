@@ -1,3 +1,45 @@
+# ci-fabric 0.14.0
+
+Audit remediation: the local contract is hardened, the hosted adapter is real,
+and the first signed GitHub Release is cut from this tag.
+
+## Security
+
+- **OCI extraction** uses the stdlib `extract_archive` filter (CVE-class
+  path/traversal hardening) instead of raw `extractall`.
+- **Build cache restore** is containment-checked: traversal, absolute paths,
+  symlinked destinations, `.git`/`.ci`/`.localci` state and tracked sources are
+  rejected as corruption — a hand-edited manifest cannot turn a cache hit into
+  an arbitrary file write.
+- **Version ordering** uses a real semver key (prerelease/build metadata no
+  longer sort lexically).
+- **Bootstrap** is pip-first and reproducible from the committed lock.
+
+## Added
+
+- Hosted **Python 3.11–3.15 matrix** (`ci.yml`, `fail-fast: false`); 3.11 runs
+  the full clean-env pipeline, newer versions run the clean-env test tiers.
+- **Tag-gated signed release** (`release.yml`): `scripts/check-release-tag.sh`
+  refuses a tag that does not match `VERSION`; cosign-keyless signing uses the
+  per-tag GitHub OIDC identity recorded in `release.json`; the bundle is
+  published as a GitHub Release with `--verify-tag`.
+- GitHub Actions pinned to current commit SHAs with a tested pin gate
+  (`scripts/check-action-pins.sh`) and grouped monthly Dependabot updates.
+- Issue/PR templates, a committed `main` ruleset payload, and
+  `docs/governance.md` (contribution path, security reporting, maintainer
+  checklist for hosted settings).
+- `SECURITY.md` and `CODE_OF_CONDUCT.md` name a concrete private contact.
+
+## Changed
+
+- Packaging follows PEP 639 (`license = "MIT"`, `license-files`); dev toolchain
+  refreshed and locked (mypy strict, ruff, pytest, pytest-cov, coverage).
+- Coverage floor ratcheted 74 → 78 against a measured 80.64% line rate.
+- `LOCALCI_VERSION` and the deployment `User-Agent` report the running version
+  instead of a hardcoded `0.1.0`.
+- Documentation re-measured: 277 tests (148 unit / 104 integration / 18
+  contract / 7 e2e); D9 superseded by D23 (hosted adapter); real project URLs.
+
 # ci-fabric 0.13.0
 
 Hosted CI is an adapter, not a fork.
