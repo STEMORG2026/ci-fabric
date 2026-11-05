@@ -1,5 +1,8 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+# setuptools>=77: the SPDX `license` expression below is PEP 639, which
+# older setuptools misreads as deprecated free text. `wheel` is not needed:
+# setuptools has vendored bdist_wheel since 70.1.
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,6 +12,7 @@ description = "Local-first, repository-native CI/CD orchestration for any stack.
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Sajan Gurung" }]
 keywords = ["ci", "cd", "local-first", "devops", "supply-chain"]
 classifiers = [
