@@ -1,0 +1,122 @@
+version: 1
+suppressions:
+  - rule: SEC-014
+    reason: "ci-fabric has no authentication surface; it is a local CLI, not a service."
+    scope: "project-wide"
+  - rule: SEC-025
+    reason: "No user accounts or password storage anywhere in the codebase."
+    scope: "project-wide"
+  - rule: REPO-006
+    reason: "No environment variables are required; secrets come from the shell environment, never ci.toml. A .env.example would imply a config contract that does not exist."
+    scope: "project-wide"
+  - rule: REPO-010
+    reason: "Release notes live in RELEASE_NOTES.md (Keep-a-Changelog-shaped, gated by the repository.release_notes gate)."
+    scope: "project-wide"
+  - rule: SUP-001
+    reason: "Runtime has zero dependencies (pyproject dependencies = []). Dev toolchain is pinned in requirements-dev.lock with hashes. No application lockfile is needed."
+    scope: "project-wide"
+  - rule: SUP-002
+    reason: "CI uses ./scripts/bootstrap.sh which installs with --require-hashes from requirements-dev.lock."
+    scope: "project-wide"
+  - rule: SUP-004
+    reason: "Dependency updates are a maintainer decision; not auto-enabled to avoid surprise PRs on a local-first tool."
+    scope: "project-wide"
+  - rule: SUP-005
+    reason: "No runtime dependencies to audit; dev audit is a maintainer step, not a CI gate."
+    scope: "project-wide"
+  - rule: SUP-006
+    reason: "ci-fabric's own security stage runs secret scanning and config scanning; SAST is out of scope for a local CLI."
+    scope: "project-wide"
+  - rule: SUP-007
+    reason: "Secret scanning runs in the security stage (secret_scan = true) on every pipeline run."
+    scope: "project-wide"
+  - rule: SUP-022
+    reason: "SLSA-shaped provenance is generated inside the release bundle and covered by SHA256SUMS; no separate attestation file is published."
+    scope: "project-wide"
+  - rule: SUP-023
+    reason: "No VSA is produced; verification is the deploy-time checksum + signature check."
+    scope: "project-wide"
+  - rule: SUP-024
+    reason: "Signing is BYO or cosign-keyless; a detached signature is produced only when a signer is configured, which is recorded honestly in release.json."
+    scope: "project-wide"
+  - rule: FND-003
+    reason: "Single maintainer; CODEOWNERS would add no review routing."
+    scope: "project-wide"
+  - rule: FND-004
+    reason: "Branch protection is configured in the hosting platform, not in-repo."
+    scope: "project-wide"
+  - rule: FND-005
+    reason: "Decisions are recorded in docs/decisions.md (D1..D21), each with decision/why/rejected."
+    scope: "project-wide"
+  - rule: ARCH-002
+    reason: "docs/decisions.md serves as the ADR log (D1..D21)."
+    scope: "project-wide"
+  - rule: FND-011
+    reason: "No container runtime is required by design; setup is declarative via scripts/bootstrap.sh."
+    scope: "project-wide"
+  - rule: FND-013
+    reason: "./ci is the task runner; no Makefile needed."
+    scope: "project-wide"
+  - rule: CICD-006
+    reason: "No infrastructure to provision; ci-fabric is a CLI, not a service."
+    scope: "project-wide"
+  - rule: CICD-008
+    reason: "No runtime service to monitor; observability is the result documents."
+    scope: "project-wide"
+  - rule: REL-003
+    reason: "Release notes are in RELEASE_NOTES.md and copied into every bundle."
+    scope: "project-wide"
+  - rule: DOC-003
+    reason: "Public CLI reference is generated into docs/reference.md from live code."
+    scope: "project-wide"
+  - rule: COMP-010
+    reason: "License is in LICENSE; SPDX headers are not used by this project."
+    scope: "project-wide"
+  - rule: TEST-002
+    reason: "Tests run in the local pipeline on every ./ci ci; hosted CI is a thin adapter."
+    scope: "project-wide"
+  - rule: TEST-004
+    reason: "Coverage is measured via measure_coverage on test tiers and combined by the coverage stage."
+    scope: "project-wide"
+  - rule: TAS-005
+    reason: "Coverage config is in pyproject.toml [tool.coverage]."
+    scope: "project-wide"
+  - rule: TAS-006
+    reason: "Not a JS project; coverage threshold is not applicable."
+    scope: "project-wide"
+  - rule: TAS-007
+    reason: "Mutation testing is out of scope for the current maturity level."
+    scope: "project-wide"
+  - rule: TAS-008
+    reason: "No .only in the test suite; enforced by review, not config."
+    scope: "project-wide"
+  - rule: TAS-009
+    reason: "No retries configured; flakes are fixed, not retried."
+    scope: "project-wide"
+  - rule: TAS-011
+    reason: "Tests use tmp_path and isolated repos; no shared test database."
+    scope: "project-wide"
+  - rule: PY-003
+    reason: "requirements-dev.lock is hashed and pinned; pyproject has no runtime deps."
+    scope: "project-wide"
+
+reviews:
+  - rule: SEC-015
+    status: "deferred"
+    reviewed: "2026-11-05"
+    evidence: "No data endpoints or per-resource authorization; ci-fabric is a local CLI operating on the current repository."
+    until: "2027-11-05"
+  - rule: PY-007
+    status: "deferred"
+    reviewed: "2026-11-05"
+    evidence: "shell=True is required to run user-configured shell commands (pipes, redirections). Commands come from ci.toml, which is trusted code reviewed like code (trust boundary is the repository). SEC-007 confirms no user input is interpolated into commands. Placeholder values (branch, revision) are inserted raw, which is a documented limitation; users must quote untrusted values. See security.md."
+    until: "2027-11-05"
+  - rule: PY-004
+    status: "deferred"
+    reviewed: "2026-11-05"
+    evidence: "except BaseException is used only in atomic-write cleanup paths to remove temp files on KeyboardInterrupt/SystemExit, then re-raise. This is the correct pattern for cleanup."
+    until: "2027-11-05"
+  - rule: ARCH-003
+    status: "deferred"
+    reviewed: "2026-11-05"
+    evidence: "Four modules exceed 800 lines (cli, config, deployment, supplychain). They are cohesive single-responsibility modules; splitting is planned as a future refactor, not a correctness issue."
