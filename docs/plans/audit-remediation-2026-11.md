@@ -168,66 +168,79 @@ add attestation only if a consumer asks for SLSA v1.0 bundle format.
 Branch-protection note for Phase 2.3: the required check is now the matrix
 job names (`ci (python 3.11)` … `ci (python 3.15)`), not a single `ci`.
 
-## Phase 2 — Documentation truth, metadata, governance (~1 day)
+## Phase 2 — Documentation truth, metadata, governance ✅
 
-All doc fixes land in one or two commits; the links/versions/generated gates
-re-verify them.
+Landed on PR #1; release tag `v0.14.0` cut on the green PR head
+(`5e43778`) and published by the fixed release workflow.
 
-### 2.1 CF-12…CF-18 — Doc drift sweep
-- `docs/testing.md`: tier counts → 145/91/18/7 (261 after Phase 0; re-measure
-  at edit time), measured coverage → the post-Phase-1 number.
-- `docs/roadmap.md`, `docs/decisions.md` (D22), `docs/plans/god-file-refactor.md`:
-  252 → 256; god-file line counts → 1943/1246/1093/909 (re-measure at edit).
-- `docs/decisions.md`: mark **D9 superseded** by the 0.13.0 hosted-adapter
-  decision (add a short D23 recording the adapter, or annotate D9 — pick one
-  convention and keep it).
-- `docs/operations.md`: release workflow description → actual commands
-  (post-Phase-1 it will include cosign + publish; write it once, after 1.4).
-- `RELEASE_NOTES.md`: append a dated correction to the 0.13.0 section
-  (workflow arg-order/tag fix), do not rewrite history.
-- `autodoc.toml`: refresh the phase comment + `phase_declared` date.
-- `docs/audit-report.md`: correct the `pin-actions.mjs` claim to point at the
-  new `scripts/check-action-pins.sh` (or note the script lived elsewhere).
-- `src/ci_fabric/supplychain.py` docstring (CF-27): "signing lives in
-  release.py; this module covers archives/SBOM/provenance".
-- **Verify:** `./ci validate` (links, versions, generated) + full `./ci ci`.
+### 2.1 CF-12…CF-18 — Doc drift sweep ✅ (`dd5fd22`)
+- `docs/testing.md`: 148 unit / 104 integration / 18 contract / 7 e2e
+  (**277**); coverage **80.64%** vs floor **78**.
+- `docs/roadmap.md`, D22, `docs/plans/god-file-refactor.md`: 277 tests;
+  measured sizes deployment **1944** / config **1246** / cli **1093** /
+  supplychain **909**.
+- D9 marked **superseded by D23** (hosted adapter recorded as a new decision).
+- `docs/operations.md`: actual cosign + publish commands, tag-gate script,
+  `LOCALCI_VERSION`/User-Agent contract, governance link.
+- `RELEASE_NOTES.md`: dated historical correction on 0.13.0 (no rewrite).
+- `autodoc.toml`: phase comment + `phase_declared = 2026-11-05`.
+- `docs/audit-report.md`: `pin-actions.mjs` claim corrected to
+  `scripts/check-action-pins.sh`.
+- `supplychain.py` docstring: signing lives in `release.py`.
+- **Verified:** `./ci validate` links/versions/generated green; full
+  `./ci ci` PASS (58 gates, 1 skip).
 
-### 2.2 CF-19 + CF-23 — Real metadata and the first release
-- `pyproject.toml [project.urls]`: Homepage/Repository/Issues/Changelog →
-  `https://github.com/STEMORG2026/ci-fabric` (+ `/issues`, RELEASE_NOTES.md).
-- GitHub repo settings (manual or `gh api`): description, homepage, topics
-  (`ci`, `cd`, `local-first`, `supply-chain`, `python`, `slsa`).
-- After Phases 0–1 are merged to `main`: bump to **0.13.1** (or 0.14.0 if the
-  matrix/signing changes are judged feature-level — recommend 0.14.0), write
-  the notes section, tag `v0.14.0`, let the fixed release workflow publish the
-  first signed GitHub Release. This exercises CF-07's whole path end-to-end.
+### 2.2 CF-19 + CF-23 — Real metadata and the first release ✅ (`dd5fd22`, `5e43778`)
+- `pyproject.toml [project.urls]`: real GitHub Homepage/Repository/Issues/
+  Changelog.
+- Hosted repo settings (description/homepage/topics): **maintainer action** —
+  the automation token received HTTP 403 writing repository metadata; the
+  intended values are recorded in `docs/governance.md`.
+- **0.14.0** bumped (`VERSION`, pyproject, notes, generated reference); tag
+  `v0.14.0`; release workflow run **42050834241 SUCCESS** (4m21s): tag gate →
+  bootstrap → cosign-keyless sign → self-verify → GitHub Release publication.
+  Release: https://github.com/STEMORG2026/ci-fabric/releases/tag/v0.14.0
+  (8 assets incl. `SHA256SUMS.sigstore.json`). `release.json` records the
+  resolved per-tag identity and the exact `cosign verify-blob` command.
+- **Independent offline verification** (`.release-verify/verify_offline.py`):
+  SHA256SUMS digest matches the bundle `messageDigest`; Fulcio certificate
+  SAN = workflow@refs/tags/v0.14.0; issuer = GitHub Actions OIDC; cert valid
+  at signing time; **ECDSA P-256 signature VERIFIED**. Rekor inclusion was
+  verified online by cosign in the workflow before publication.
 
-### 2.3 CF-20 + CF-21 — Disclosure channel & repo governance
-- Enable **GitHub private vulnerability reporting** (Settings → Security);
-  rewrite SECURITY.md's reporting section to use it; keep the owner contact
-  as fallback with a concrete address.
-- CODE_OF_CONDUCT.md: add the same concrete contact.
-- Add `.github/ISSUE_TEMPLATE/bug_report.md` + `feature_request.md` (minimal,
-  evidence-first: version, command, result JSON, log) and
-  `.github/pull_request_template.md` (checklist: `./ci ci` green, docs updated,
-  tests-first for gate changes).
-- **Verify branch protection** on `main` in settings: require PR + `ci`
-  status check, block force-push (API returned 403 from the audit sandbox;
-  this is a maintainer action).
+### 2.3 CF-20 + CF-21 — Disclosure channel & repo governance ✅ (in-repo) / ⚠ (hosted)
+- `SECURITY.md` + `CODE_OF_CONDUCT.md`: concrete private contact
+  (`sajan.plg@gmail.com`), GitHub private reporting as preferred channel.
+- Issue forms (`bug_report.yml`, `feature_request.yml`, `config.yml`) and
+  `pull_request_template.md` added.
+- `.github/rulesets/main.json` committed (require PR, block force-push/
+  deletion, five matrix checks, zero required approvals for a single
+  maintainer); `docs/governance.md` records the maintainer checklist.
+- **Hosted writes blocked:** private vulnerability reporting PUT → 403;
+  ruleset POST → 403; repo metadata PATCH → 403 (integration token lacks
+  administration write). These remain maintainer actions, verified via GET
+  (`private-vulnerability-reporting` currently `{"enabled": false}`,
+  rulesets `[]`). The disclosure fallback (email) is live in the policy.
 
-### 2.4 CF-24, CF-25, CF-26, CF-28 — Small quality items
-- Add empty `tests/unit/__init__.py`.
-- `ci.toml [stages.coverage] min_percent`: 74 → **78** (headroom ~2.5 pts
-  under the measured 80.48%; revisit upward as it climbs). Record rationale
-  next to the value, per project convention.
-- Decide `LOCALCI_VERSION`/`USER_AGENT` semantics: document as env-contract
-  version **or** derive from `__version__`; update the result-contract test
-  if the value changes.
-- Trailing newlines: `.python-version`, `.editorconfig`.
-- Regenerate `./ci docs` if any of the above touches the reference.
+### 2.4 CF-24, CF-25, CF-26, CF-28 — Small quality items ✅ (`64ce781`, `f32a389`, `d6ef6a5`)
+- `tests/unit/__init__.py` added.
+- Coverage floor 74 → **78** with rationale comment (measured 80.64%).
+- `LOCALCI_VERSION` and deployment `User-Agent` derive from `__version__`
+  (test-first); dead `current_version()` removed.
+- Trailing newlines on `.python-version`, `.editorconfig` and remaining
+  tracked text files.
+- Cache-restore follow-up hardening: symlink aliases and `.git`/`.ci`/
+  `.localci` state rejected (test-first, 4 regressions).
+- Tag gate moved to tested `scripts/check-release-tag.sh` (4 tests);
+  `gh release create --verify-tag`; bundle uploaded even on failure.
+- `./ci docs` regenerated for the version bump.
 
-**Phase 2 exit:** every doc claim matches measured reality; disclosure
-channel live; first signed release published; floor raised.
+**Phase 2 exit evidence (2026-11-05):** local `./ci ci` PASS at 0.14.0
+(result `20261105T145312Z-5e43778569d3-3f819d`, 58 pass / 0 fail / 1 skip,
+277 tests, coverage 80.64%); hosted matrix run **42049805896** all five
+`ci (python 3.11…3.15)` PASS; signed GitHub Release **v0.14.0** published and
+independently verified. Hosted protection/PVR/metadata writes are recorded
+as maintainer actions (403 for the automation token), not claimed done.
 
 ## Phase 3 — Architecture & optional hardening (scheduled, ~2–4 days)
 
@@ -237,7 +250,7 @@ Order by risk, one split per commit, `./ci ci` green each:
    re-exports (most mechanical).
 2. `cli.py` (1093) → parser/dispatch + `cli_handlers.py`.
 3. `config.py` (1246) → dataclasses/load + `config_validation.py`.
-4. `deployment.py` (1943) → orchestration + `deployment_health.py` +
+4. `deployment.py` (1944) → orchestration + `deployment_health.py` +
    `deployment_rollback.py` (largest; do last, with the deploy invariant
    tests as the safety net).
 Preserve the plan's invariant: all public names re-exported; no behavior
