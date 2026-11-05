@@ -9,6 +9,8 @@ repository standards. This is a second pass over the same tree reviewed in
 searches for what it missed.
 
 Companion execution plan: [plans/audit-remediation-2026-11.md](plans/audit-remediation-2026-11.md).
+This document is a snapshot of findings at `40bd74b`; remediation status and
+measured evidence live in the plan, not here.
 
 ---
 

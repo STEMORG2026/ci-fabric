@@ -1,5 +1,5 @@
 # AutoDOC declared context. Every value is a declaration reviewed against this
-# repository's actual content on 2026-10-26; mappings point at files this
+# repository's actual content on 2026-11-05; mappings point at files this
 # repository owns and the ci-fabric pipeline re-verifies (links gate, versions
 # gate, generated-drift gate) on every run.
 
@@ -7,9 +7,10 @@ schema = 1
 
 phase = "beta"
 # Matches the project's own honest status (docs/roadmap.md "Status honesty"):
-# full gate model implemented and self-tested; signing is BYO-command;
-# hosted-CI adapter deliberately deferred; no stage parallelism yet.
-phase_declared = "2026-10-26"
+# full gate model implemented and self-tested; cosign-keyless default signer
+# (BYO-command still supported); hosted-CI adapter ships as thin workflows
+# (matrix CI + tag-gated signed release); test tiers run in parallel.
+phase_declared = "2026-11-05"
 
 profile = "oss-library"
 # A public tool others consume (the package installs into consumer repos).

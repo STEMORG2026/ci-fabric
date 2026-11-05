@@ -25,8 +25,9 @@ Auditors: internet best-practice review + Universal Software Auditor (USA) v0.1,
 
 ## Fixes applied during this audit
 
-- Pinned all GitHub Actions to commit SHAs (`pin-actions.mjs`); `--check`
-  passes.
+- Pinned all GitHub Actions to commit SHAs; the in-repo gate is
+  `scripts/check-action-pins.sh` (the earlier `pin-actions.mjs` name was never
+  committed — corrected 2026-11-05). The check passes.
 - Added `id-token: write` to the release workflow for cosign keyless OIDC.
 - Hardened hosted-CI templates: concurrency groups, `cancel-in-progress`,
   per-job `timeout-minutes`.

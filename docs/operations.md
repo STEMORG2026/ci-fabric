@@ -70,7 +70,11 @@ release must name a reproducible revision. The bundle is a flat directory —
 `artifact-manifest.json` (rewritten to the bundle), `SHA256SUMS`,
 `RELEASE_NOTES.md`, `release.json` (version, revision, epoch, profile,
 signing status), the archive, and the SBOM/provenance when present. Tags are
-created only with `--tag` and are treated as immutable.
+created only with `--tag` and are treated as immutable. The hosted tag gate is
+`scripts/check-release-tag.sh` (unit-tested; `TAG` env indirection), and the
+GitHub Release is created with `--verify-tag`. Stages see `LOCALCI_VERSION`
+equal to the running tool version, and deployment probes send
+`User-Agent: ci-fabric/<version>`.
 
 ## Deployment
 
@@ -152,7 +156,9 @@ The workflows invoke the canonical commands only. The orchestrator, gates,
 policy and reports are byte-identical to a local run; the adapter contributes
 a machine, an OIDC identity and a secret store. Treat the files as templates
 — review and adapt to your runner, and keep `fetch-depth: 0` so the repository
-stage can read history. No CI logic lives in the workflow itself.
+stage can read history. No CI logic lives in the workflow itself. Repository
+protection, security reporting and the maintainer checklist for hosted
+settings are in [governance.md](governance.md).
 
 ## Troubleshooting
 

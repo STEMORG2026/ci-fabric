@@ -36,7 +36,10 @@ dependencies = []
 ci-fabric = "ci_fabric.cli:main"
 
 [project.urls]
-Homepage = "https://example.invalid/ci-fabric"
+Homepage = "https://github.com/STEMORG2026/ci-fabric"
+Repository = "https://github.com/STEMORG2026/ci-fabric"
+Issues = "https://github.com/STEMORG2026/ci-fabric/issues"
+Changelog = "https://github.com/STEMORG2026/ci-fabric/blob/main/RELEASE_NOTES.md"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

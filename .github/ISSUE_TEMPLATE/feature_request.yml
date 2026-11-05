@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose a capability or improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What can you not do today, and why does it matter?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should ci-fabric do? Include config/CLI shape if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Including "do nothing" and any existing workaround.
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and risk
+      description: >
+        Does this change a gate, a public contract, or a security boundary?
+        What tests would prove it?
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I read docs/roadmap.md and this is not an explicit non-goal.
+          required: true
+        - label: I searched existing issues and this is not a duplicate.
+          required: true

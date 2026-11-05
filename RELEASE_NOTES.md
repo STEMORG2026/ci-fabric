@@ -13,6 +13,11 @@ Hosted CI is an adapter, not a fork.
   byte-identical to a local run. Treat them as templates and adapt to your
   runner.
 
+  > Historical correction (2026-11-05): the shipped tag workflow invokes
+  > `--clean-env release` (no `--tag`); the tag already exists when the
+  > workflow runs. The adapter was hardened in 0.14.0 (Python matrix,
+  > tag↔VERSION gate, resolved signing identity, GitHub Release publication).
+
 # ci-fabric 0.12.0
 
 Package outputs are cacheable.
