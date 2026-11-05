@@ -1,3 +1,18 @@
+# ci-fabric 0.13.0
+
+Hosted CI is an adapter, not a fork.
+
+## Added
+
+- **`.github/workflows/ci.yml` and `release.yml`** — thin GitHub Actions
+  templates. `ci.yml` runs on push/PR: full-history checkout, Python 3.11,
+  `./scripts/bootstrap.sh`, then the canonical `./ci ci --clean-env`, uploading
+  `.ci/reports/`. `release.yml` runs on a `v*` tag and invokes `./ci release
+  --clean-env --tag`, uploading `.localci/releases/`. The workflows contain no
+  CI logic of their own; the orchestrator, gates, policy and reports are
+  byte-identical to a local run. Treat them as templates and adapt to your
+  runner.
+
 # ci-fabric 0.12.0
 
 Package outputs are cacheable.

@@ -15,14 +15,13 @@ makes the local pipeline more rigorous comes in.
   provenance document is already inside the signed checksum set; what the
   default signer adds is key handling and an out-of-the-box authority, not
   coverage.
-- **A hosted-CI adapter, not a hosted-CI fork.** When GitHub Actions (or any
-  other runner) enters the picture, it must invoke the same canonical commands
-  (`./ci ci`, `./ci release`) in a clean checkout. The orchestrator, gates,
-  policy, and reports stay byte-identical; the adapter contributes only a
-  machine and a secret store. No CI logic will ever be duplicated across local
-  and hosted paths — that duplication is precisely what this project exists to
-  prevent. (OpenCode-hosted CI note: no workflow files are created in this
-  repository by design in the current phase.)
+- **~Done in 0.13.0:~ hosted-CI adapter** — a thin GitHub Actions workflow
+  (`.github/workflows/ci.yml`, `release.yml`) that checks out a clean tree,
+  bootstraps the pinned toolchain, and invokes the canonical `./ci ci` /
+  `./ci release` commands. No CI logic is duplicated: the orchestrator, gates,
+  policy and reports are byte-identical to a local run; the adapter contributes
+  only a machine and a secret store. Workflow files are templates — review and
+  adapt to your runner.
 - **~Done in 0.4.0:~ stage parallelism** for the test tiers
   (`[policy].parallel_test_tiers`, opt-in; this repository runs it on). A full
   stage DAG remains deliberately rejected (decisions.md D11): format/lint/

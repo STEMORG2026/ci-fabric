@@ -113,6 +113,22 @@ Failure behavior:
 - `rollback` swaps current/previous explicitly and restores the outgoing
   deployment if the rollback target is also broken.
 
+## Hosted CI (adapter, not a fork)
+
+ci-fabric ships thin workflow templates under `.github/workflows/`:
+
+- `ci.yml` — on push/PR: checkout (full history), setup Python 3.11,
+  `./scripts/bootstrap.sh`, then `./ci ci --clean-env`, uploading `.ci/reports/`
+  as an artifact.
+- `release.yml` — on a `v*` tag: the same bootstrap, then `./ci release
+  --clean-env --tag`, uploading `.localci/releases/`.
+
+The workflows invoke the canonical commands only. The orchestrator, gates,
+policy and reports are byte-identical to a local run; the adapter contributes
+a machine and a secret store. Treat the files as templates — review and adapt
+to your runner, and keep `fetch-depth: 0` so the repository stage can read
+history. No CI logic lives in the workflow itself.
+
 ## Troubleshooting
 
 - **"another ci-fabric run is already active"** — a stale `.ci/run.lock` from
