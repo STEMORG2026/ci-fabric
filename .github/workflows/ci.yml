@@ -26,7 +26,7 @@ jobs:
       - name: bootstrap toolchain
         run: ./scripts/bootstrap.sh
       - name: run canonical pipeline
-        run: ./.venv/bin/python -m ci_fabric --root . ci --clean-env
+        run: ./.venv/bin/python -m ci_fabric --root . --clean-env ci
       - name: upload reports
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
