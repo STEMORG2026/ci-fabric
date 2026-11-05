@@ -359,6 +359,31 @@ part and the part that rots); making cosign the default without opt-in
 hang in CI); silently falling back to unsigned when cosign is missing (that is
 exactly the unprovable claim the 0.8.1 label work removed).
 
+## D21 — Package outputs are cacheable, keyed on revision and input digests
+
+**Decision.** `[stages.package].cache = true` (opt-in) stores the package's
+archive plus its SBOM, provenance, manifest and checksums in a
+content-addressed cache under `.localci/cache/package`, keyed on the git
+revision and a digest of the package inputs and configuration. A clean tree
+restores all of them and skips packaging; a dirty tree is never looked up or
+stored. Only the deterministic archive strategy is cacheable; command-based
+packaging runs its own commands and is not replayable from a digest.
+
+**Why.** The build cache (D13) already skips identical builds; packaging
+re-runs SBOM generation, provenance, manifest writing and checksums for an
+unchanged tree, which is wasted work on every local run. Reusing the same
+content-addressed machinery keeps one enforcement path (digest-verified
+restore, clean-tree-only, opt-in) instead of a second ad-hoc cache. Caching
+the derived files together means a hit is a complete, consistent package, not
+just an archive with stale metadata.
+
+**Rejected.** Caching only the archive (the derived SBOM/provenance would then
+be regenerated against a restored archive, defeating the skip); caching
+command-based packaging (its outputs depend on commands ci-fabric cannot
+observe, so a hit could be a lie); caching on dirty trees (a package of a
+tree nobody can name again is not worth keeping, and the build cache already
+established this rule).
+
 ## Pending decisions (deliberately open)
 
 - A mechanical `./ci notes --add <version>` command that prepends the new

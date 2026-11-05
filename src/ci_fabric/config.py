@@ -588,6 +588,7 @@ def _parse_stage(name: str, doc: dict[str, Any], where: str, policy: PolicyConfi
             "format",
             "strip_prefix",
             "exclude",
+            "cache",
         },
         "artifact": {
             "smoke_commands",

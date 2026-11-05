@@ -7,6 +7,7 @@ import shutil
 import time
 from pathlib import Path
 
+from .. import buildcache
 from ..config import DEFAULT_PACKAGE_EXCLUDES
 from ..context import Context
 from ..gates import GateResult, StageResult, failed, passed, skipped, stage_result, warning
@@ -19,7 +20,7 @@ from ..supplychain import (
     write_checksums,
     write_manifest,
 )
-from ..util import ensure_dir, is_within, relpath
+from ..util import ensure_dir, is_within, relpath, sha256_file
 from .base import Echo, disabled_gate, disabled_skip_reason, run_stage_commands
 
 
@@ -66,6 +67,27 @@ def _collect_command_outputs(context: Context, patterns: list[str]) -> tuple[lis
     return sorted(set(collected)), problems
 
 
+def _input_digest(paths: list[Path]) -> str:
+    import hashlib
+
+    digest = hashlib.sha256()
+    files: list[Path] = []
+    for path in paths:
+        if path.is_dir():
+            files.extend(sorted(p for p in path.rglob("*") if p.is_file()))
+        elif path.is_file():
+            files.append(path)
+    for path in sorted(files):
+        try:
+            digest.update(str(path).encode())
+            digest.update(b"\\x00")
+            digest.update(sha256_file(path).encode())
+            digest.update(b"\\x00")
+        except OSError:
+            continue
+    return digest.hexdigest()
+
+
 def _archive_output(context: Context, stage_output: str | None) -> Path:
     if stage_output:
         candidate = Path(context.render(stage_output))
@@ -104,6 +126,88 @@ def run_package_stage(context: Context, echo: Echo) -> StageResult:
     gates: list[GateResult] = []
     package_files: list[Path] = []
     commands = [context.render(command) for command in stage.commands]
+
+    # Content-addressed package cache (opt-in). A clean tree restores the
+    # previous package's archive + derived supply-chain files instead of
+    # rebuilding them. Only the deterministic archive strategy is cacheable;
+    # command-based packaging runs its own commands and cannot be replayed
+    # from a digest. A dirty tree is never looked up and never stored.
+    cache_key_value: str | None = None
+    cache_descriptors: list[str] = []
+    cacheable = stage.cache and stage.strategy == "archive"
+    if stage.cache and not cacheable:
+        gates.append(
+            warning(
+                "package.cache",
+                "package",
+                "package cache",
+                summary="package cache is only supported for strategy=archive; building normally",
+            )
+        )
+    if cacheable:
+        if not context.git.available:
+            gates.append(
+                warning(
+                    "package.cache",
+                    "package",
+                    "package cache",
+                    summary="cache=true requires a Git repository; building normally",
+                )
+            )
+            cacheable = False
+        elif context.git.dirty:
+            gates.append(
+                warning(
+                    "package.cache",
+                    "package",
+                    "package cache",
+                    summary=(
+                        "tree is dirty; cache not consulted (a dirty package is not reproducible)"
+                    ),
+                )
+            )
+            cacheable = False
+        else:
+            build_stage = context.config.stage("build")
+            inputs = stage.inputs or (build_stage.outputs if build_stage else [])
+            expanded_inputs = _expand(context, inputs) if inputs else []
+            input_digest = _input_digest(expanded_inputs)
+            cache_descriptors = [
+                "package:archive",
+                f"format:{stage.archive_format}",
+                f"strip_prefix:{stage.strip_prefix}",
+                f"exclude:{stage.exclude}",
+                f"output:{stage.output}",
+                f"inputs:{inputs}",
+                f"input_digest:{input_digest}",
+            ]
+            cache_key_value = buildcache.cache_key(context, cache_descriptors)
+            entry = buildcache.lookup(context, cache_key_value, kind="package")
+            if entry is not None:
+                restored = buildcache.restore(entry, context)
+                cache_gates = [
+                    passed(
+                        "package.cache",
+                        "package",
+                        "package cache",
+                        required=stage.required,
+                        summary=(
+                            f"cache hit {cache_key_value[:12]}: {len(restored)} output(s) "
+                            "restored, package commands skipped"
+                        ),
+                        details={"key": cache_key_value, "restored": restored[:50]},
+                    )
+                ]
+                echo(
+                    f"  cache hit {cache_key_value[:12]}: restored {len(restored)} output(s); "
+                    "package skipped"
+                )
+                return stage_result(
+                    "package",
+                    cache_gates,
+                    duration_seconds=time.monotonic() - started,
+                )
+            echo(f"  cache miss {cache_key_value[:12]}: packaging and caching")
 
     if stage.strategy == "archive":
         build_stage = context.config.stage("build")
@@ -341,6 +445,41 @@ def run_package_stage(context: Context, echo: Echo) -> StageResult:
             details={"problems": problems},
         )
     )
+    if (
+        cacheable
+        and cache_key_value is not None
+        and context.git.available
+        and not context.git.dirty
+        and not any(gate.failed for gate in gates)
+        and package_files
+    ):
+        to_store = [
+            *package_files,
+            sbom_path,
+            provenance_path,
+            manifest_path,
+            checksums_path,
+        ]
+        stored = buildcache.store(
+            context,
+            cache_key_value,
+            cache_descriptors,
+            to_store,
+            kind="package",
+        )
+        if stored is not None:
+            gates.append(
+                passed(
+                    "package.cache",
+                    "package",
+                    "package cache",
+                    required=stage.required,
+                    summary=f"cached under {cache_key_value[:12]} for clean-tree reuse",
+                    details={"key": cache_key_value},
+                    artifacts=[relpath(stored, context.root)],
+                )
+            )
+
     for gate in gates:
         if gate.id == "package.checksums" and not problems:
             gate.details = {"media_types": {path.name: media_type(path) for path in package_files}}

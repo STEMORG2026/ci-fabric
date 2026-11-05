@@ -1,3 +1,18 @@
+# ci-fabric 0.12.0
+
+Package outputs are cacheable.
+
+## Added
+
+- **`[stages.package].cache = true`** — content-addressed storage for package
+  outputs. A clean tree restores the archive plus its SBOM, provenance,
+  manifest and checksums instead of rebuilding them; a dirty tree is never
+  looked up or stored. Keyed on the git revision and a digest of the package
+  inputs and configuration, reusing the build cache's machinery (digest-verified
+  restore, opt-in, clean-tree-only). Only the deterministic archive strategy
+  is cacheable; command-based packaging runs its own commands and is not
+  replayable from a digest.
+
 # ci-fabric 0.11.0
 
 A default signer: cosign keyless, invoked not embedded.

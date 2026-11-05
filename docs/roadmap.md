@@ -30,9 +30,7 @@ makes the local pipeline more rigorous comes in.
 
 ## Medium term
 
-- **Artifact cache.** Content-addressed storage for package outputs so
-  unchanged trees skip rebuilds; keyed on the revision and input digests the
-  manifest already records.
+- ~~**Artifact cache.**~~ ~Done in 0.12.0 (decisions.md D21):~ content-addressed storage for package outputs (archive + SBOM + provenance + manifest + checksums), opt-in via `[stages.package].cache = true`, keyed on the revision and input digests. A clean tree restores the previous package instead of rebuilding; a dirty tree is never looked up or stored.
 - ~~**Generic container strategy.**~~ ~Done in 0.10.0 (decisions.md D19):~
   `[deploy.<env>].strategy = "oci"` builds a deterministic OCI image layout from
   the verified release artifact in-process — no daemon required to produce it —

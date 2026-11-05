@@ -41,8 +41,8 @@ class CacheEntry:
         return entries if isinstance(entries, list) else []
 
 
-def cache_root(context: Context) -> Path:
-    return context.root / ".localci" / "cache" / "build"
+def cache_root(context: Context, kind: str = "build") -> Path:
+    return context.root / ".localci" / "cache" / kind
 
 
 def cache_key(context: Context, rendered_commands: list[str]) -> str:
@@ -55,14 +55,14 @@ def cache_key(context: Context, rendered_commands: list[str]) -> str:
     return digest.hexdigest()
 
 
-def lookup(context: Context, key: str) -> CacheEntry | None:
+def lookup(context: Context, key: str, kind: str = "build") -> CacheEntry | None:
     """Return the entry for `key`, or None when it is absent or corrupt.
 
     Corruption is checked eagerly: every stored output digest is verified
     against the cached bytes before the entry is handed back, so a hit is
     always a restore-able hit.
     """
-    directory = cache_root(context) / key
+    directory = cache_root(context, kind) / key
     manifest_path = directory / "cache.json"
     if not manifest_path.is_file():
         return None
@@ -108,6 +108,7 @@ def store(
     key: str,
     rendered_commands: list[str],
     output_paths: list[Path],
+    kind: str = "build",
 ) -> Path | None:
     """Persist a green build's outputs under `key`.
 
@@ -117,7 +118,7 @@ def store(
     """
     if not output_paths:
         return None
-    directory = ensure_dir(cache_root(context) / key / "outputs")
+    directory = ensure_dir(cache_root(context, kind) / key / "outputs")
     entries: list[dict[str, Any]] = []
     for source in output_paths:
         try:
@@ -152,13 +153,13 @@ def store(
         "created_at": context.started_at.isoformat(),
         "outputs": entries,
     }
-    manifest_path = entry_manifest_path(context, key)
+    manifest_path = entry_manifest_path(context, key, kind)
     write_json(manifest_path, manifest)
     return manifest_path
 
 
-def entry_manifest_path(context: Context, key: str) -> Path:
-    return cache_root(context) / key / "cache.json"
+def entry_manifest_path(context: Context, key: str, kind: str = "build") -> Path:
+    return cache_root(context, kind) / key / "cache.json"
 
 
 def _load(path: Path) -> dict[str, Any]:
