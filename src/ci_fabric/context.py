@@ -15,14 +15,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from . import __version__
 from .config import Config, StageConfig
-from .errors import CiError, ConfigError, PrerequisiteError
+from .errors import ConfigError, PrerequisiteError
 from .util import (
     ensure_dir,
     git_output,
     git_root,
     isoformat,
-    read_text,
     relpath,
     run_git,
     utc_now,
@@ -30,6 +30,7 @@ from .util import (
 
 _PLACEHOLDER = re.compile(r"(?<!\$)\{([a-z][a-z0-9_]*)\}")
 _VERSION = re.compile(r"^\d+\.\d+\.\d+")
+LOCALCI_VERSION = __version__
 
 _TOOL_CANDIDATES = (
     "python3",
@@ -362,6 +363,12 @@ def _base_environment(root: Path, clean_env: bool) -> dict[str, str]:
             "SSH_AUTH_SOCK",
             "XDG_CACHE_HOME",
             "VIRTUAL_ENV",
+            # Ambient OIDC identity for cosign-keyless release signing:
+            # ephemeral, scoped credentials (like SSH_AUTH_SOCK), required
+            # for the signer subprocess to obtain a token in hosted CI.
+            "ACTIONS_ID_TOKEN_REQUEST_URL",
+            "ACTIONS_ID_TOKEN_REQUEST_TOKEN",
+            "SIGSTORE_ID_TOKEN",
         }
         env = {key: value for key, value in os.environ.items() if key in allowed}
     else:
@@ -479,7 +486,7 @@ def create_context(
         "CI": "1",
         "LOCALCI": "1",
         "LOCALCI_RUN_ID": run_id,
-        "LOCALCI_VERSION": "0.1.0",
+        "LOCALCI_VERSION": LOCALCI_VERSION,
         "LOCALCI_PROJECT": config.project.name,
         "LOCALCI_ARTIFACTS": str(paths.artifacts_dir),
         "LOCALCI_REPORTS": str(paths.reports_dir),
@@ -512,16 +519,6 @@ def create_context(
     )
     context.environment_snapshot()  # validates serialisation early
     return context
-
-
-def current_version() -> str:
-    init = Path(__file__).with_name("__init__.py")
-    try:
-        text = read_text(init)
-    except CiError:
-        return "0.1.0"
-    match = re.search(r'__version__ = "([^"]+)"', text)
-    return match.group(1) if match else "0.1.0"
 
 
 def print_context_summary(context: Context) -> str:

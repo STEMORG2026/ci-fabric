@@ -8,9 +8,15 @@ digest-verified, so corruption is a miss, never a wrong artifact.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
+import pytest
+
+from ci_fabric import buildcache
+from ci_fabric.errors import CiError
 from tests.support import commit_all, gate, make_repo, run_fixture_pipeline, write_files
 
 CACHE_SECTIONS = (
@@ -120,3 +126,119 @@ def test_cache_is_opt_in(tmp_path: Path) -> None:
     result, _context = run_fixture_pipeline(root, command="build")
     assert all(g.id != "build.cache" for g in result.all_gates)
     assert not (root / ".localci" / "cache").exists()
+
+
+def _planted_entry(root: Path, outputs: list[dict[str, str]], revision: str = "deadbeef") -> str:
+    """Write an attacker-shaped cache manifest; return its key.
+
+    The payload files are placed where the manifest's source resolution
+    lands, with matching digests, so only path validation can reject them.
+    """
+    context = SimpleNamespace(root=root, git=SimpleNamespace(revision=revision))
+    key = "k" * 64
+    entry_dir = buildcache.cache_root(context) / key
+    (entry_dir / "outputs").mkdir(parents=True)
+    for item in outputs:
+        source = entry_dir / "outputs" / item["path"]
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("ATTACKER CONTENT\n", encoding="utf-8")
+        item["sha256"] = hashlib.sha256(source.read_bytes()).hexdigest()
+    manifest = {"schema_version": 1, "key": key, "revision": revision, "outputs": outputs}
+    (entry_dir / "cache.json").write_text(json.dumps(manifest), encoding="utf-8")
+    return key
+
+
+def test_a_traversal_manifest_is_a_miss_and_writes_nothing(tmp_path: Path) -> None:
+    # Audit CF-03 proof-of-concept: `../victim.txt` resolves to an existing,
+    # digest-matching source inside the cache tree, but the restore
+    # destination escapes the repository root. Lookup must reject it.
+    root = make_cached_repo(tmp_path)
+    victim = tmp_path / "victim.txt"
+    victim.write_text("ORIGINAL\n", encoding="utf-8")
+    key = _planted_entry(root, [{"path": "../victim.txt"}])
+    context = SimpleNamespace(root=root, git=SimpleNamespace(revision="deadbeef"))
+    assert buildcache.lookup(context, key) is None
+    assert victim.read_text(encoding="utf-8") == "ORIGINAL\n"
+
+
+def test_an_absolute_manifest_path_is_a_miss(tmp_path: Path) -> None:
+    # The payload exists and its digest matches; only the absolute path
+    # shape can reject this entry.
+    root = make_cached_repo(tmp_path)
+    context = SimpleNamespace(root=root, git=SimpleNamespace(revision="deadbeef"))
+    key = "k" * 64
+    entry_dir = buildcache.cache_root(context) / key
+    outputs_dir = entry_dir / "outputs"
+    outputs_dir.mkdir(parents=True)
+    payload = outputs_dir / "payload.txt"
+    payload.write_text("ATTACKER CONTENT\n", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "key": key,
+        "revision": "deadbeef",
+        "outputs": [
+            {"path": str(payload), "sha256": hashlib.sha256(payload.read_bytes()).hexdigest()}
+        ],
+    }
+    (entry_dir / "cache.json").write_text(json.dumps(manifest), encoding="utf-8")
+    assert buildcache.lookup(context, key) is None
+
+
+def test_a_manifest_targeting_a_tracked_file_is_a_miss(tmp_path: Path) -> None:
+    # A committed file is a source, never a build product (the build.clean
+    # doctrine): the cache must neither serve nor restore over tracked paths.
+    root = make_cached_repo(tmp_path)
+    before = (root / "VERSION").read_text(encoding="utf-8")
+    key = _planted_entry(root, [{"path": "VERSION"}])
+    context = SimpleNamespace(root=root, git=SimpleNamespace(revision="deadbeef"))
+    assert buildcache.lookup(context, key) is None
+    assert (root / "VERSION").read_text(encoding="utf-8") == before
+
+
+def test_restore_revalidates_even_when_lookup_is_bypassed(tmp_path: Path) -> None:
+    # Defense in depth: restore() is public, so it re-checks containment and
+    # tracked paths itself rather than trusting that lookup filtered first.
+    root = make_cached_repo(tmp_path)
+    before = (root / "VERSION").read_text(encoding="utf-8")
+    key = _planted_entry(root, [{"path": "VERSION"}])
+    context = SimpleNamespace(root=root, git=SimpleNamespace(revision="deadbeef"))
+    entry_dir = buildcache.cache_root(context) / key
+    manifest = json.loads((entry_dir / "cache.json").read_text(encoding="utf-8"))
+    entry = buildcache.CacheEntry(key=key, manifest=manifest, directory=entry_dir)
+    with pytest.raises(CiError):
+        buildcache.restore(entry, context)
+    assert (root / "VERSION").read_text(encoding="utf-8") == before
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [".ci/results/latest.json", ".localci/deploy/current.json", ".git/config"],
+)
+def test_a_manifest_targeting_ci_or_git_state_is_a_miss(tmp_path: Path, relative: str) -> None:
+    # Run evidence, deploy state and Git configuration are never build
+    # products, even though they are untracked/ignored.
+    root = make_cached_repo(tmp_path)
+    key = _planted_entry(root, [{"path": relative}])
+    context = SimpleNamespace(root=root, git=SimpleNamespace(revision="deadbeef"))
+    assert buildcache.lookup(context, key) is None
+
+
+def test_a_symlink_alias_to_a_tracked_file_is_a_miss(tmp_path: Path) -> None:
+    # Phase 0 checked the literal manifest path against Git's tracked set;
+    # an untracked symlink directory could alias a tracked file and bypass
+    # that check. Resolve/symlink-check the destination before restoring.
+    root = make_cached_repo(tmp_path)
+    (root / "real").mkdir()
+    tracked = root / "real" / "tracked.txt"
+    tracked.write_text("ORIGINAL\n", encoding="utf-8")
+    commit_all(root, "track target")
+    (root / "link").symlink_to(root / "real", target_is_directory=True)
+    key = _planted_entry(root, [{"path": "link/tracked.txt"}])
+    context = SimpleNamespace(root=root, git=SimpleNamespace(revision="deadbeef"))
+    assert buildcache.lookup(context, key) is None
+    entry_dir = buildcache.cache_root(context) / key
+    manifest = json.loads((entry_dir / "cache.json").read_text(encoding="utf-8"))
+    entry = buildcache.CacheEntry(key=key, manifest=manifest, directory=entry_dir)
+    with pytest.raises(CiError):
+        buildcache.restore(entry, context)
+    assert tracked.read_text(encoding="utf-8") == "ORIGINAL\n"

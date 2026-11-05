@@ -78,6 +78,19 @@ def test_truncate_slug_versions_and_merge() -> None:
     assert util.merge_dicts({"a": "1"}, {"b": "2"}) == {"a": "1", "b": "2"}
 
 
+def test_version_key_orders_prereleases_before_releases() -> None:
+    # Semver precedence: a prerelease sorts before the final release of the
+    # same version (CF-04: the old numeric key put 1.0.0-rc1 AFTER 1.0.0).
+    assert util.version_key("1.0.0-rc1") < util.version_key("1.0.0")
+    assert util.version_key("1.0.0-rc2") > util.version_key("1.0.0-rc1")
+    assert util.version_key("1.9.0") < util.version_key("1.10.0")
+    assert util.version_key("1.0.0-1") < util.version_key("1.0.0-alpha")
+    assert util.version_key("1.0.0-alpha") < util.version_key("1.0.0-alpha.1")
+    assert util.version_key("1.0.0-alpha.1") < util.version_key("1.0.0-alpha.beta")
+    assert util.version_key("1.0.0+build.9") == util.version_key("1.0.0")
+    assert util.version_key("1.0.0") < util.version_key("1.0.1")
+
+
 def test_redact_env_keeps_names_not_values() -> None:
     redacted = util.redact_env(
         {

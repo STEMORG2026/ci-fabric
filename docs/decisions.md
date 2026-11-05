@@ -94,14 +94,18 @@ use the same convention, so any of them can be a ci-fabric gate command and
 ci-fabric can be a gate in theirs (`["bash", "./ci", "ci"]` under MACP's
 argv rules). See `CROSS-PROJECT-FINDINGS.md`.
 
-## D9 — Local-first means no hosted path exists yet, by design
+## D9 — Local-first means no hosted path exists yet, by design (superseded by D23)
 
-**Decision.** No `.github/` workflows ship in this phase. The future adapter
-invokes the same canonical commands (`./ci ci`) in a clean checkout — logic
-is never duplicated between local and hosted paths.
+**Decision (historical).** No `.github/` workflows shipped in that phase. The
+future adapter would invoke the same canonical commands (`./ci ci`) in a clean
+checkout — logic is never duplicated between local and hosted paths.
 
-**Rejected.** Shipping parallel workflow YAML now: it would fork the gate
-logic at the exact moment the local contract is still hardening.
+**Rejected.** Shipping parallel workflow YAML at that time: it would have
+forked the gate logic while the local contract was still hardening.
+
+**Superseded.** The local contract hardened; D23 records the hosted adapter
+that now ships (matrix CI + tag-gated signed release). The invariant survived:
+the workflows contain no CI logic of their own.
 
 ## D10 — Three gate outcomes: pass, fail, and unverified
 
@@ -388,7 +392,7 @@ established this rule).
 
 - ~~A mechanical `./ci notes --add <version>` command that prepends the new
   section to the changelog.~~ **Built** as `./ci notes` (add/show/clear) in
-  0.13.1-dev: composes an `## Unreleased` section in `RELEASE_NOTES.md` so
+  0.13.x (first released in 0.14.0): composes an `## Unreleased` section in `RELEASE_NOTES.md` so
   notes accumulate across commits and are cleared by `./ci notes --clear`
   after a release. D16's gate still catches a stale/missing Unreleased block;
   the composer prevents the empty-notes failure mode.
@@ -401,8 +405,31 @@ recorded in `docs/plans/god-file-refactor.md`.
 
 **Why.** They are cohesive single-responsibility modules; the size is a smell,
 not a correctness defect. Splitting is a refactor with real risk (20+ import
-sites, 252 tests) and no behavioral payoff. The owner freezes verified-green
+sites, 277 tests) and no behavioral payoff. The owner freezes verified-green
 systems: improvements become plans/ADRs, not unprompted work.
 
 **Rejected.** Splitting now (risk of breaking the green pipeline for a lint
 score); ignoring the smell entirely (tracked as ARCH-003 in `.usa.yaml`).
+
+## D23 — Hosted CI is an adapter, not a fork
+
+**Decision.** Ship `.github/workflows/ci.yml` (push/PR, Python 3.11–3.15
+matrix, `fail-fast: false`) and `.github/workflows/release.yml` (`v*` tag,
+tag↔VERSION gate, cosign-keyless signing, GitHub Release publication). Both
+invoke the canonical CLI in a clean environment; no gate logic lives in YAML.
+Supersedes D9's "no hosted path yet".
+
+**Why.** The local contract is stable and self-tested; teams need a hosted
+signal that is byte-identical to a local run. A matrix proves the supported
+Python range (3.11–3.15) rather than a single interpreter. Signing uses
+GitHub Actions OIDC with a per-tag certificate identity recorded in
+`release.json`, so a release is verifiable without managing keys.
+
+**Rejected.** Duplicating gate logic in workflow steps (forks the contract);
+a single-Python hosted job (hides version-specific breakage); static signing
+identity in `ci.toml` (cannot match every `v*` tag); `attest-build-provenance`
+as a second provenance path (the SLSA-shaped `provenance.json` is already
+checksummed and signed via `SHA256SUMS`).
+
+**Revisit when.** A consumer needs a non-GitHub host; the adapter boundary
+(`./ci … --clean-env`) is the port.

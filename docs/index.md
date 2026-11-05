@@ -13,6 +13,8 @@ from the live code; editing them by hand is always wrong).
 | [configuration.md](configuration.md) | every `ci.toml` key, schema 1 | review |
 | [gates.md](gates.md) | every gate, its classification, and why | review |
 | [operations.md](operations.md) | commands, state layout, release, deploy, troubleshooting | review |
+| [governance.md](governance.md) | contribution path, security reporting, hosted protection checklist | review |
+| [architecture.md](architecture.md) | module map and data flow | review |
 | [security.md](security.md) | threat model, scanning, SAST suppressions, signing | review |
 | [decisions.md](decisions.md) | architecture decisions with rejected alternatives | review |
 | [testing.md](testing.md) | the four test tiers and what each one is for | review |
@@ -22,6 +24,8 @@ from the live code; editing them by hand is always wrong).
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | how to contribute (CI must be green) | review |
 | [../SECURITY.md](../SECURITY.md) | how to report a vulnerability | review |
 | [../CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) | community conduct | review |
+| [independent-audit-2026-11-05.md](independent-audit-2026-11-05.md) | independent audit findings CF-01…CF-29 | snapshot |
+| [plans/audit-remediation-2026-11.md](plans/audit-remediation-2026-11.md) | remediation plan and execution evidence | per phase |
 
 ## Freshness policy
 

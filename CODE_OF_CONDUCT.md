@@ -26,11 +26,13 @@ no hidden costs, honest limits.
 
 ## Scope
 
-Applies to the repository, its issues and reviews, and any venue where the
-project is represented.
+Applies to the repository, its issues, pull requests and reviews, and any
+venue where the project is represented.
 
 ## Enforcement
 
-Report to the project owner (Sajan Gurung) through any available private
-channel. This project currently has no hosted community space; enforcement
-is the owner's responsibility and judgments are documented privately.
+Report conduct concerns privately to the project owner (Sajan Gurung) at
+**sajan.plg@gmail.com** with `[ci-fabric conduct]` in the subject. Reports are
+reviewed confidentially; enforcement decisions are documented privately and
+may include a warning, temporary ban, or permanent ban from project spaces.
+Retaliation against a good-faith reporter is itself unacceptable.

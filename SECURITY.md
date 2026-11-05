@@ -1,24 +1,34 @@
 # Security policy
 
-ci-fabric is a local-first CI/CD orchestrator with no runtime dependencies
-and no network presence. Its security model — what it defends against, what
-it cannot, and how the pipeline enforces its own hygiene — is documented in
+ci-fabric is a local-first CI/CD orchestrator with no runtime dependencies and
+no background network service. Configured stages may contact the network when
+you ask them to (for example `pip-audit`); ci-fabric itself does not phone home.
+Its security model — what it defends against, what it cannot, and how the
+pipeline enforces its own hygiene — is documented in
 [docs/security.md](docs/security.md).
 
 ## Reporting a vulnerability
 
-This repository currently has no remote or issue tracker; it is developed
-locally. Report vulnerabilities directly to the owner (Sajan Gurung) by
-whatever private channel you have. Include:
+**Preferred:** GitHub private vulnerability reporting — open the repository's
+**Security** tab and choose **Report a vulnerability**. This keeps the report
+private to the maintainers while it is triaged.
+
+**Fallback (always available):** email **sajan.plg@gmail.com** with
+`[ci-fabric security]` in the subject. Do **not** open a public issue for a
+suspected vulnerability.
+
+Please include:
 
 1. the affected component and version (`./ci version`),
 2. a reproduction or the conditions required,
 3. impact, and whether the standard gates fail to catch it.
 
-The threat model in [docs/security.md](docs/security.md) is the honest
-boundary of the tool: ci-fabric enforces integrity inside a repository's
-trust boundary (no tracked secrets, verified release bytes, signature-checked
-deploys, traversal-safe extraction). It is not a secure-build enclave, and
+We aim to acknowledge within 7 days and to coordinate disclosure within 90
+days (sooner for an actively exploited issue). The threat model in
+[docs/security.md](docs/security.md) is the honest boundary of the tool:
+ci-fabric enforces integrity inside a repository's trust boundary (no tracked
+secrets, verified release bytes, signature-checked deploys, traversal-safe
+extraction and cache restore). It is not a secure-build enclave, and
 `ci.toml` is code — review it like code.
 
 ## What the pipeline enforces on itself
@@ -34,3 +44,6 @@ deploys, traversal-safe extraction). It is not a secure-build enclave, and
 - No secrets in configuration: literal credential-shaped values in
   `[deploy.*].env` are rejected at load time; `${VAR}` + `env_required` is
   the only supported shape.
+- Cache restore is containment-checked: traversal, absolute paths, symlinked
+  destinations, `.git`/`.ci`/`.localci` state and tracked sources are rejected
+  as corruption, never served or restored.

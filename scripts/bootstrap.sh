@@ -21,6 +21,25 @@ if [ ! -f requirements-dev.lock ]; then
   exit 3
 fi
 
+# Install the lock's pinned pip FIRST (hash-verified). A fresh venv inherits
+# the system pip (e.g. 23.0.1 on Debian bookworm), whose --require-hashes
+# resolver mishandles extras: uv-compiled locks pin `coverage==X` while
+# pytest-cov requires `coverage[toml]>=Y`, and old pip treats the extra as an
+# unpinned requirement — it may even resolve a different version than the
+# lock. The pinned pip resolves the identical lock correctly (CF-02).
+PIP_PIN=$(mktemp "${TMPDIR:-/tmp}/ci-fabric-pip.XXXXXX")
+trap 'rm -f "$PIP_PIN"' EXIT
+awk '
+  /^pip==/ { inpip = 1 }
+  inpip && /^[^[:space:]]/ && !/^pip==/ { inpip = 0 }
+  inpip { print }
+' requirements-dev.lock > "$PIP_PIN"
+if [ -s "$PIP_PIN" ]; then
+  echo "installing pinned pip (hash-verified)"
+  .venv/bin/python -m pip install --disable-pip-version-check --require-hashes \
+    -r "$PIP_PIN"
+fi
+
 echo "installing hashed development toolchain"
 .venv/bin/python -m pip install --disable-pip-version-check --require-hashes \
   -r requirements-dev.lock

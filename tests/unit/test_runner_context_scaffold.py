@@ -51,6 +51,23 @@ def test_clean_environment_is_constructed_not_inherited(tmp_path: Path) -> None:
     assert "PYTHONPATH" not in context.base_env
 
 
+def test_clean_environment_preserves_ambient_oidc_for_keyless_signing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # cosign keyless signs with the ambient OIDC identity; under --clean-env
+    # the request variables must survive or hosted releases cannot sign
+    # (CF-07). They are ephemeral, scoped credentials, like SSH_AUTH_SOCK.
+    root = make_repo(tmp_path)
+    config = load_config(root)
+    monkeypatch.setenv("ACTIONS_ID_TOKEN_REQUEST_URL", "https://token.example/request")
+    monkeypatch.setenv("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "request-token")
+    monkeypatch.setenv("SIGSTORE_ID_TOKEN", "id-token")
+    context = create_context(root, config, clean_env=True)
+    assert context.base_env["ACTIONS_ID_TOKEN_REQUEST_URL"] == "https://token.example/request"
+    assert context.base_env["ACTIONS_ID_TOKEN_REQUEST_TOKEN"] == "request-token"
+    assert context.base_env["SIGSTORE_ID_TOKEN"] == "id-token"
+
+
 def test_source_date_epoch_from_commit(tmp_path: Path) -> None:
     _root, context = fixture_context(tmp_path)
     assert context.git.available is True

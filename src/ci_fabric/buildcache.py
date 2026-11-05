@@ -14,7 +14,10 @@ stored: a build of a tree nobody can name again is not worth keeping.
 
 Entries store the declared build outputs plus their SHA-256 digests; a
 restore re-verifies every digest before touching the working tree, so a
-corrupted cache is a miss, never a wrong artifact.
+corrupted cache is a miss, never a wrong artifact. Manifest paths are
+contained: traversal, absolute paths, symlinked destinations, Git/CI state
+directories and targets tracked in Git are rejected as corruption (a miss),
+never served or restored.
 """
 
 from __future__ import annotations
@@ -22,11 +25,21 @@ from __future__ import annotations
 import hashlib
 import shutil
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .context import Context
-from .util import ensure_dir, read_text, relpath, sha256_file, write_json
+from .errors import CiError, ConfigError
+from .util import (
+    ensure_dir,
+    is_within,
+    read_text,
+    relpath,
+    safe_relative_path,
+    sha256_file,
+    tracked_files,
+    write_json,
+)
 
 
 @dataclass(slots=True)
@@ -55,6 +68,39 @@ def cache_key(context: Context, rendered_commands: list[str]) -> str:
     return digest.hexdigest()
 
 
+def _destination_problem(root: Path, relative: str, tracked: set[str]) -> str | None:
+    """Why a cache output must not be restored to *relative*, or None.
+
+    The manifest is untrusted local state. Besides traversal, reject the
+    repository's own evidence/state directories and symlink aliases: an
+    untracked symlink directory must not smuggle a write onto a tracked file,
+    and `.ci`, `.localci` and `.git` are never build products.
+    """
+    try:
+        safe_relative_path(relative)
+    except ConfigError:
+        return "not a repository-relative path"
+    destination = root / relative
+    if not is_within(destination, root):
+        return "outside the repository"
+    current = root
+    for part in PurePosixPath(relative).parts:
+        current = current / part
+        if current.is_symlink():
+            return "a symlinked destination"
+    resolved = destination.resolve()
+    for protected in (root / ".git", root / ".ci", root / ".localci"):
+        if is_within(resolved, protected):
+            return f"{protected.name} state (never a build product)"
+    try:
+        resolved_relative = resolved.relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return "outside the repository"
+    if resolved_relative in tracked:
+        return "a tracked file (a source, never a build product)"
+    return None
+
+
 def lookup(context: Context, key: str, kind: str = "build") -> CacheEntry | None:
     """Return the entry for `key`, or None when it is absent or corrupt.
 
@@ -76,22 +122,53 @@ def lookup(context: Context, key: str, kind: str = "build") -> CacheEntry | None
         return None
     if revision != (context.git.revision or "nogit"):
         return None
+    # The manifest is local state, not trusted input: a corrupted or tampered
+    # cache.json must not become a write/delete primitive outside the cache
+    # (CF-03). Reject traversal, absolute paths, sources outside the entry's
+    # outputs directory, and any target tracked in Git — a committed file is
+    # a source, never a build product (the build.clean doctrine). Violations
+    # are corruption: a miss that rebuilds, never a wrong artifact.
+    outputs_dir = directory / "outputs"
+    tracked = set(tracked_files(context.root))
     for entry in outputs:
         if not isinstance(entry, dict):
             return None
-        path = directory / "outputs" / str(entry.get("path", ""))
+        relative = str(entry.get("path", ""))
+        if _destination_problem(context.root, relative, tracked) is not None:
+            return None
+        path = outputs_dir / relative
+        if not is_within(path, outputs_dir):
+            return None
         if not path.is_file() or sha256_file(path) != entry.get("sha256"):
             return None
     return CacheEntry(key=key, manifest=manifest, directory=directory)
 
 
 def restore(entry: CacheEntry, context: Context) -> list[str]:
-    """Copy the cached outputs back into the working tree; returns paths."""
+    """Copy the cached outputs back into the working tree; returns paths.
+
+    Re-validates every path even though lookup() already filters: restore is
+    public, and a write outside the repository (or over a tracked file) must
+    be impossible regardless of how the entry was obtained (CF-03).
+    """
     restored: list[str] = []
+    outputs_dir = entry.directory / "outputs"
+    tracked = set(tracked_files(context.root))
     for item in entry.outputs:
         relative = str(item.get("path", ""))
-        source = entry.directory / "outputs" / relative
+        problem = _destination_problem(context.root, relative, tracked)
+        if problem is not None:
+            raise CiError(
+                f"cache entry would overwrite {problem}: {relative!r}",
+                remediation="Delete .localci/cache/ and rebuild; the cache is corrupt.",
+            )
+        source = outputs_dir / relative
         destination = context.root / relative
+        if not is_within(source, outputs_dir):
+            raise CiError(
+                f"cache entry escapes its directory: {relative!r}",
+                remediation="Delete .localci/cache/ and rebuild; the cache is corrupt.",
+            )
         if destination.is_dir():
             shutil.rmtree(destination)
         if source.is_dir():

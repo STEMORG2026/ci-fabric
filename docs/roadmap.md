@@ -77,8 +77,9 @@ makes the local pipeline more rigorous comes in.
 ## Status honesty
 
 This project is **Beta**: the gate model, packaging, release, deploy, and
-rollback paths are implemented and self-tested (252 tests across four tiers,
-full pipeline green on this repository), with an opt-in cosign-keyless default
-signer (see security.md) and thin hosted-CI workflow templates. Treat it as a
+rollback paths are implemented and self-tested (277 tests across four tiers,
+full pipeline green on this repository and on a hosted Python 3.11–3.15
+matrix), with a cosign-keyless default signer (see security.md) and thin
+hosted-CI adapters that invoke the same canonical commands. Treat it as a
 strong local CI with an explicit, documented gap list (see "Pending decisions")
 — not as a finished enterprise platform.

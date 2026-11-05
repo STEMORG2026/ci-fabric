@@ -291,16 +291,21 @@ def _release_notes(
     return text, source, False
 
 
-def _effective_signer(config: Config) -> tuple[str, str | None, str | None]:
-    """Resolve the configured signer into (kind, sign_command, verify_command).
+def _effective_signer(
+    config: Config,
+) -> tuple[str, str | None, str | None, str | None, str | None]:
+    """Resolve the signer into (kind, sign_command, verify_command, identity, issuer).
 
-    Returns ``("none", None, None)`` for an unsigned release, the BYO
-    commands for ``sign_command``, or the cosign-keyless command pair. Raises
-    ``CiError`` for a misconfigured or unavailable signer so a release never
-    silently ships unsigned when a signer was requested.
+    Returns ``("none", None, None, None, None)`` for an unsigned release, the
+    BYO commands for ``sign_command``, or the cosign-keyless command pair with
+    the RESOLVED identity and issuer (config value, else environment — hosted
+    releases supply a per-tag identity via COSIGN_CERTIFICATE_IDENTITY, which
+    a static ci.toml value cannot express). Raises ``CiError`` for a
+    misconfigured or unavailable signer so a release never silently ships
+    unsigned when a signer was requested.
     """
     if config.release.sign_command:
-        return "external", config.release.sign_command, config.release.verify_command
+        return "external", config.release.sign_command, config.release.verify_command, None, None
     if config.release.signer == "cosign-keyless":
         identity = config.release.signing_identity or os.environ.get("COSIGN_CERTIFICATE_IDENTITY")
         issuer = config.release.signing_issuer or os.environ.get("COSIGN_CERTIFICATE_OIDC_ISSUER")
@@ -331,13 +336,13 @@ def _effective_signer(config: Config) -> tuple[str, str | None, str | None]:
             f"--certificate-identity {shlex.quote(identity)} "
             f"--certificate-oidc-issuer {shlex.quote(issuer)} SHA256SUMS"
         )
-        return "cosign-keyless", sign_command, verify_command
+        return "cosign-keyless", sign_command, verify_command, identity, issuer
     if config.release.signer not in {"none", ""}:
         raise CiError(
             f"unknown signer: {config.release.signer!r}",
             remediation='Use signer = "cosign-keyless" or "none".',
         )
-    return "none", None, None
+    return "none", None, None, None, None
 
 
 def create_release(
@@ -466,7 +471,13 @@ def create_release(
         write_text_atomic(notes_out, notes_text if notes_text.endswith("\n") else notes_text + "\n")
 
         created_at = isoformat(utc_now())
-        signer_kind, effective_sign_command, effective_verify_command = _effective_signer(config)
+        (
+            signer_kind,
+            effective_sign_command,
+            effective_verify_command,
+            signing_identity,
+            signing_issuer,
+        ) = _effective_signer(config)
         release_metadata: dict[str, Any] = {
             "schema_version": 1,
             "project": config.project.name,
@@ -499,12 +510,8 @@ def create_release(
             "signing_bundle": (
                 "SHA256SUMS.sigstore.json" if signer_kind == "cosign-keyless" else None
             ),
-            "signing_identity": (
-                config.release.signing_identity if signer_kind == "cosign-keyless" else None
-            ),
-            "signing_issuer": (
-                config.release.signing_issuer if signer_kind == "cosign-keyless" else None
-            ),
+            "signing_identity": (signing_identity if signer_kind == "cosign-keyless" else None),
+            "signing_issuer": (signing_issuer if signer_kind == "cosign-keyless" else None),
             "verify_command": (
                 effective_verify_command if signer_kind == "cosign-keyless" else None
             ),

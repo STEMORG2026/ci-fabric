@@ -70,7 +70,11 @@ release must name a reproducible revision. The bundle is a flat directory —
 `artifact-manifest.json` (rewritten to the bundle), `SHA256SUMS`,
 `RELEASE_NOTES.md`, `release.json` (version, revision, epoch, profile,
 signing status), the archive, and the SBOM/provenance when present. Tags are
-created only with `--tag` and are treated as immutable.
+created only with `--tag` and are treated as immutable. The hosted tag gate is
+`scripts/check-release-tag.sh` (unit-tested; `TAG` env indirection), and the
+GitHub Release is created with `--verify-tag`. Stages see `LOCALCI_VERSION`
+equal to the running tool version, and deployment probes send
+`User-Agent: ci-fabric/<version>`.
 
 ## Deployment
 
@@ -117,17 +121,44 @@ Failure behavior:
 
 ci-fabric ships thin workflow templates under `.github/workflows/`:
 
-- `ci.yml` — on push/PR: checkout (full history), setup Python 3.11,
-  `./scripts/bootstrap.sh`, then `./ci ci --clean-env`, uploading `.ci/reports/`
-  as an artifact.
-- `release.yml` — on a `v*` tag: the same bootstrap, then `./ci release
-  --clean-env --tag`, uploading `.localci/releases/`.
+- `ci.yml` — on push/PR/manual dispatch: a **Python 3.11–3.15 matrix**. The
+  oldest supported Python (3.11) runs the canonical full pipeline
+  (`./ci ci --clean-env`); newer versions run the test tiers
+  (`./ci test --clean-env`). Each job bootstraps the pinned toolchain with
+  its own interpreter (`PYTHON=pythonX.Y`) and uploads `.ci/reports/` per
+  version.
+- `release.yml` — on a `v*` tag: verifies the tag matches `VERSION`
+  (env-indirected, never interpolated into the script), bootstraps, installs
+  cosign, then runs `./ci release --clean-env` with the per-tag signing
+  identity in `COSIGN_CERTIFICATE_IDENTITY`. The bundle is signed (cosign
+  keyless, GitHub OIDC), published as a **GitHub Release** (artifact +
+  `SHA256SUMS` + sigstore bundle + SBOM + provenance), and uploaded as a
+  workflow artifact.
+
+**Release signing posture.** This repository signs its hosted releases with
+`signer = "cosign-keyless"` (ci.toml). The certificate identity is the
+workflow ref at the tag
+(`https://github.com/STEMORG2026/ci-fabric/.github/workflows/release.yml@refs/tags/vX.Y.Z`),
+supplied per-tag by the workflow because a static ci.toml identity cannot
+match every tag; the issuer is `https://token.actions.githubusercontent.com`.
+A local `./ci release` without an ambient OIDC identity **aborts by design**
+(fail-closed, never silently unsigned): releases are cut by pushing a tag.
+To verify a published bundle:
+
+```sh
+cosign verify-blob --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity 'https://github.com/STEMORG2026/ci-fabric/.github/workflows/release.yml@refs/tags/vX.Y.Z' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  SHA256SUMS
+```
 
 The workflows invoke the canonical commands only. The orchestrator, gates,
 policy and reports are byte-identical to a local run; the adapter contributes
-a machine and a secret store. Treat the files as templates — review and adapt
-to your runner, and keep `fetch-depth: 0` so the repository stage can read
-history. No CI logic lives in the workflow itself.
+a machine, an OIDC identity and a secret store. Treat the files as templates
+— review and adapt to your runner, and keep `fetch-depth: 0` so the repository
+stage can read history. No CI logic lives in the workflow itself. Repository
+protection, security reporting and the maintainer checklist for hosted
+settings are in [governance.md](governance.md).
 
 ## Troubleshooting
 

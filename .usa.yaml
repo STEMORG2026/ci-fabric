@@ -19,7 +19,7 @@ suppressions:
     reason: "CI uses ./scripts/bootstrap.sh which installs with --require-hashes from requirements-dev.lock."
     scope: "project-wide"
   - rule: SUP-004
-    reason: "Dependency updates are a maintainer decision; not auto-enabled to avoid surprise PRs on a local-first tool."
+    reason: "Dev-Python toolchain updates are a reviewed maintainer step (hash-pinned lock, zero runtime deps). GitHub Actions pins ARE automated: .github/dependabot.yml proposes monthly grouped SHA bumps, and scripts/check-action-pins.sh gates pin shape in the lint stage (added 2026-11-05 after the audit found v4/v5 pins while v7 was current)."
     scope: "project-wide"
   - rule: SUP-005
     reason: "No runtime dependencies to audit; dev audit is a maintainer step, not a CI gate."

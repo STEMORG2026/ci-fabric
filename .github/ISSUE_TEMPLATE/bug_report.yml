@@ -1,0 +1,63 @@
+name: Bug report
+description: Something ci-fabric did wrong (or failed to refuse)
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. For **security vulnerabilities**, do not use this
+        form — follow [SECURITY.md](../SECURITY.md) instead.
+  - type: input
+    id: version
+    attributes:
+      label: ci-fabric version
+      description: Output of `./ci version` (or the installed package version).
+      placeholder: "0.14.0"
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      description: The exact command you ran, including flags.
+      placeholder: "./ci ci --clean-env"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the exit code and the relevant gate/result output.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Result document / logs
+      description: >
+        Paste the relevant part of `.ci/results/latest.json` or the stage log.
+        Redact anything secret.
+      render: json
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, and whether this was local or hosted CI.
+      placeholder: "Ubuntu 24.04, Python 3.13, GitHub Actions"
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: This is not a security vulnerability (those go through SECURITY.md).
+          required: true

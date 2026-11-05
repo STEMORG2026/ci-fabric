@@ -5,14 +5,14 @@ Status: **planned, not executed** (owner freeze on verified-green system).
 ## Motivation
 
 USA flags four modules over 800 lines (ARCH-003, deferred):
-- `src/ci_fabric/cli.py` (~1000 lines)
-- `src/ci_fabric/config.py` (~900 lines)
-- `src/ci_fabric/deployment.py` (~900 lines)
-- `src/ci_fabric/supplychain.py` (~900 lines)
+- `src/ci_fabric/deployment.py` (1944 lines)
+- `src/ci_fabric/config.py` (1246 lines)
+- `src/ci_fabric/cli.py` (1093 lines)
+- `src/ci_fabric/supplychain.py` (909 lines)
 
 These are cohesive single-responsibility modules; the size is a smell, not a
 correctness defect. Splitting is a refactor with real risk (20+ import sites,
-252 tests) and no behavioral payoff, so it is recorded here rather than
+277 tests) and no behavioral payoff, so it is recorded here rather than
 executed unprompted.
 
 ## Proposed split (when approved)

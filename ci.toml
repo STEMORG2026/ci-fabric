@@ -53,7 +53,12 @@ fix_commands = ["{python} -m ruff format src tests"]
 
 [stages.lint]
 required = true
-commands = ["{python} -m ruff check src tests"]
+commands = [
+  "{python} -m ruff check src tests",
+  # SHA-pin shape gate: external action refs must be full commit SHAs.
+  # Dependabot (.github/dependabot.yml) keeps the pins current.
+  "sh scripts/check-action-pins.sh",
+]
 
 [stages.typecheck]
 required = true
@@ -115,7 +120,11 @@ env = { COVERAGE_FILE = "{artifacts}/coverage.data", CI_FABRIC_COVERAGE = "1" }
 commands = [
   "{python} -m coverage run --parallel-mode -m pytest -q tests && {python} -m coverage combine {artifacts} && {python} -m coverage report",
 ]
-min_percent = 74
+# Ratcheted from 74 to 78 on 2026-11-05: the full suite measures ~80.5% line
+# coverage, so 78 leaves a small, honest buffer for platform-specific branches
+# while making a real regression fail. Raise it only when the measured rate
+# sustains the new floor; never lower it to make a red run green.
+min_percent = 78
 
 [stages.security]
 required = true
@@ -156,6 +165,13 @@ require_notes = true
 changelog = "RELEASE_NOTES.md"
 tag_prefix = "v"
 output_dir = ".localci/releases"
+# Hosted releases are signed with cosign keyless (GitHub Actions OIDC).
+# The certificate identity is per-tag, so the workflow supplies it via
+# COSIGN_CERTIFICATE_IDENTITY; the issuer is stable. A local `./ci release`
+# without an ambient OIDC identity aborts by design — releases are cut via
+# the workflow (see docs/operations.md, "Hosted CI").
+signer = "cosign-keyless"
+signing_issuer = "https://token.actions.githubusercontent.com"
 
 [hooks]
 pre_commit_stages = ["repository", "format", "security"]

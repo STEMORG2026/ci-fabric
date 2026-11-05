@@ -1,14 +1,18 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+# setuptools>=77: the SPDX `license` expression below is PEP 639, which
+# older setuptools misreads as deprecated free text. `wheel` is not needed:
+# setuptools has vendored bdist_wheel since 70.1.
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ci-fabric"
-version = "0.13.0"
+version = "0.14.0"
 description = "Local-first, repository-native CI/CD orchestration for any stack."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Sajan Gurung" }]
 keywords = ["ci", "cd", "local-first", "devops", "supply-chain"]
 classifiers = [
@@ -21,6 +25,7 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
   "Topic :: Software Development :: Build Tools",
   "Topic :: Software Development :: Quality Assurance",
   "Topic :: Software Development :: Testing",
@@ -31,7 +36,10 @@ dependencies = []
 ci-fabric = "ci_fabric.cli:main"
 
 [project.urls]
-Homepage = "https://example.invalid/ci-fabric"
+Homepage = "https://github.com/STEMORG2026/ci-fabric"
+Repository = "https://github.com/STEMORG2026/ci-fabric"
+Issues = "https://github.com/STEMORG2026/ci-fabric/issues"
+Changelog = "https://github.com/STEMORG2026/ci-fabric/blob/main/RELEASE_NOTES.md"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

@@ -7,8 +7,10 @@ Implemented controls:
 * CycloneDX 1.5 SBOM from lockfiles where a parser exists;
 * SLSA-provenance-shaped JSON describing inputs, builder, commands and outputs.
 
-Not implemented: signing, remote attestation, and independent rebuild
-verification. The documentation states this explicitly.
+This module does not sign: release signing lives in `release.py` (cosign
+keyless or a configured signer) and is verified before publish/deploy.
+Remote attestation and independent rebuild verification are not implemented.
+The documentation states this explicitly.
 """
 
 from __future__ import annotations
