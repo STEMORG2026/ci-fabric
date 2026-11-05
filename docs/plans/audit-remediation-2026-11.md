@@ -1,7 +1,7 @@
 # Plan: audit remediation, November 2026
 
-Status: **Phases 0–1 executed 2026-11-05**; Phases 2–3 proposed, awaiting
-approval. Phase 0 commits: `bd35327`, `4518d10`, `7a440a4`, `a4b29ba`.
+Status: **Phases 0–1 executed 2026-11-05; hosted matrix 3.11–3.15 green on
+PR #1**; Phases 2–3 proposed, awaiting approval. Phase 0 commits: `bd35327`, `4518d10`, `7a440a4`, `a4b29ba`.
 Phase 1 commits: `df2fb03`, `652b2d6`, `7c1c535`, `797a50b`, `29038a1`.
 Input: [../independent-audit-2026-11-05.md](../independent-audit-2026-11-05.md) (findings CF-01…CF-29)
 Branch: `arena/d84ce058-ci-fabric` (all work lands here; one logical change per commit)
@@ -157,9 +157,10 @@ and not) emit PEP 639 metadata. Two code fixes were needed and landed
 test-first: `--clean-env` now preserves the ambient OIDC request variables
 (cosign could not sign under clean-env otherwise), and `release.json` records
 the RESOLVED signing identity (env-supplied per-tag identity was previously
-recorded as null). Hosted-matrix green and the first signed GitHub Release
-are proven on the PR / at the Phase 2.2 tag — the workflow cannot be fully
-exercised from the audit sandbox.
+recorded as null). **Hosted matrix: all five jobs PASS on PR #1** (run
+42018570579): 3.11 full pipeline 3m52s, 3.12 4m03s, 3.13 3m21s, 3.14 3m47s,
+3.15 4m13s; Dependabot config validated. The first signed GitHub Release is
+proven at the Phase 2.2 tag.
 
 **Decisions recorded:** `actions/attest-build-provenance` deferred — the
 cosign-keyless signature already covers `provenance.json` via SHA256SUMS;
