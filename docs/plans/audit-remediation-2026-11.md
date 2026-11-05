@@ -1,7 +1,8 @@
 # Plan: audit remediation, November 2026
 
-Status: **Phase 0 executed 2026-11-05** (commits `bd35327`, `4518d10`,
-`7a440a4`, `a4b29ba`); Phases 1–3 proposed, awaiting approval.
+Status: **Phases 0–1 executed 2026-11-05**; Phases 2–3 proposed, awaiting
+approval. Phase 0 commits: `bd35327`, `4518d10`, `7a440a4`, `a4b29ba`.
+Phase 1 commits: `df2fb03`, `652b2d6`, `7c1c535`, `797a50b`, `29038a1`.
 Input: [../independent-audit-2026-11-05.md](../independent-audit-2026-11-05.md) (findings CF-01…CF-29)
 Branch: `arena/d84ce058-ci-fabric` (all work lands here; one logical change per commit)
 
@@ -79,7 +80,7 @@ PoC re-run and neutralized (lookup returns a miss, outside file untouched).
 
 ## Phase 1 — Supply chain & hosted CI modernization (~1–2 days)
 
-### 1.1 CF-05 — Bump GitHub Actions to current majors + Dependabot
+### 1.1 CF-05 — Bump GitHub Actions to current majors + Dependabot ✅ (`7c1c535`)
 - **Change:** `.github/workflows/ci.yml`, `release.yml` —
   - `actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1`
   - `actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0`
@@ -94,7 +95,7 @@ PoC re-run and neutralized (lookup returns a miss, outside file untouched).
 - **Acceptance:** hosted `ci` workflow green on a PR.
 - **Effort:** S · **Risk:** low (v7 APIs are compatible for these uses).
 
-### 1.2 CF-06 — Python support matrix
+### 1.2 CF-06 — Python support matrix ✅ (`797a50b`)
 - **Change:** `ci.yml` — strategy matrix `["3.11", "3.12", "3.13", "3.14",
   "3.15"]`; keep the canonical `./ci ci --clean-env` on 3.11 (oldest) and run
   at least the test tiers (`./ci test`) on the others; upload reports
@@ -105,7 +106,7 @@ PoC re-run and neutralized (lookup returns a miss, outside file untouched).
 - **Effort:** S · **Risk:** low; 3.15 may surface real issues — that is the
   point; fix forward.
 
-### 1.3 CF-09 + CF-02 — Toolchain refresh & lock regeneration
+### 1.3 CF-09 + CF-02 — Toolchain refresh & lock regeneration ✅ (`652b2d6`)
 - **Change:** `requirements-dev.in` — take ruff 0.17.3, pytest 9.2.0,
   coverage 7.17.2 now. Evaluate **mypy 2.4.1** (raise cap to `<3`) and
   **pytest-cov 7.1.0** (`<8`) in a scratch venv: run `mypy src` strict and the
@@ -117,7 +118,7 @@ PoC re-run and neutralized (lookup returns a miss, outside file untouched).
   `pip-audit` clean; `./ci ci` green.
 - **Effort:** M · **Risk:** medium for the two majors — isolated, reversible.
 
-### 1.4 CF-07 + CF-08 — Signed, published, tag-checked releases
+### 1.4 CF-07 + CF-08 — Signed, published, tag-checked releases ✅ (`29038a1`)
 - **Change:** `ci.toml [release]` — `signer = "cosign-keyless"`,
   `signing_identity = "https://github.com/STEMORG2026/ci-fabric/.github/workflows/release.yml@refs/tags/v<version>"`
   (confirm exact identity format against cosign docs at execution),
@@ -141,15 +142,30 @@ PoC re-run and neutralized (lookup returns a miss, outside file untouched).
 - **Effort:** M · **Risk:** medium (OIDC identity string must be exact; the
   fail-closed signer makes mistakes loud, not silent).
 
-### 1.5 CF-10 — Packaging metadata floor
+### 1.5 CF-10 — Packaging metadata floor ✅ (`df2fb03`)
 - **Change:** `pyproject.toml` — `build-system.requires = ["setuptools>=77"]`
   (drop `wheel`), add `license-files = ["LICENSE"]`.
 - **Verify:** `python -m build` (isolated) and `./ci build` (`--no-isolation`)
   both produce valid wheels; `pip-audit` still clean.
 - **Effort:** S · **Risk:** low.
 
-**Phase 1 exit:** hosted CI green across the matrix; a signed release exists;
-Dependabot armed; lock regenerated and bootstrap-proof.
+**Phase 1 exit (local evidence, 2026-11-05):** full `./ci ci` green on
+3.11.2 with the refreshed toolchain (mypy 2.4.1 strict, pytest 9.2.0 +
+pytest-cov 7.1.0, 267 tests, pip-audit clean); fresh bootstrap from system
+pip re-verified; pin gate + 4 pin tests green; both packaging builds (isolated
+and not) emit PEP 639 metadata. Two code fixes were needed and landed
+test-first: `--clean-env` now preserves the ambient OIDC request variables
+(cosign could not sign under clean-env otherwise), and `release.json` records
+the RESOLVED signing identity (env-supplied per-tag identity was previously
+recorded as null). Hosted-matrix green and the first signed GitHub Release
+are proven on the PR / at the Phase 2.2 tag — the workflow cannot be fully
+exercised from the audit sandbox.
+
+**Decisions recorded:** `actions/attest-build-provenance` deferred — the
+cosign-keyless signature already covers `provenance.json` via SHA256SUMS;
+add attestation only if a consumer asks for SLSA v1.0 bundle format.
+Branch-protection note for Phase 2.3: the required check is now the matrix
+job names (`ci (python 3.11)` … `ci (python 3.15)`), not a single `ci`.
 
 ## Phase 2 — Documentation truth, metadata, governance (~1 day)
 
